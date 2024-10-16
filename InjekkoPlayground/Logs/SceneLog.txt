@@ -1,0 +1,10 @@
+Scene: UNNAMED
+	SceneContext(GO): 
+		| SceneContext 
+
+	Player(GO): 
+		| GameObjectContext 
+		| Player 
+
+		Inventory(GO): 
+

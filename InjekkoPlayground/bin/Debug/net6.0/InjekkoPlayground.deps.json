@@ -1,0 +1,36 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v6.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v6.0": {
+      "InjekkoPlayground/1.0.0": {
+        "dependencies": {
+          "InjekkoBinding": "1.0.0"
+        },
+        "runtime": {
+          "InjekkoPlayground.dll": {}
+        }
+      },
+      "InjekkoBinding/1.0.0": {
+        "runtime": {
+          "InjekkoBinding.dll": {}
+        }
+      }
+    }
+  },
+  "libraries": {
+    "InjekkoPlayground/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "InjekkoBinding/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

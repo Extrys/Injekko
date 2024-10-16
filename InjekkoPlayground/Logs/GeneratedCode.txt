@@ -1,0 +1,68 @@
+namespace Pepe
+{
+    public static class DependencyC_Rizolver
+    {
+		static DependencyB depB = null;
+
+        public static void Injek(this DependencyC instance)
+        {
+					Context container = Project.CurrentScene.FindObjectOfType<SceneContext>();
+				if(container == null)
+					throw new System.Exception("No SceneContext found in scene, please add one");
+				depB = container.Resolve<DependencyB>();
+
+			instance.Inject(depB);
+        }
+    }
+}
+    public static class Player_Rizolver
+    {
+		static DependencyA depA = null;
+		static Pepe.DependencyC depC = null;
+
+        public static void Injek(this Player instance)
+        {
+				Context container = instance.GetComponent<Context>();
+				if(container == null)
+					container = Project.CurrentScene.FindObjectOfType<SceneContext>();
+				if(container == null)
+					throw new System.Exception("No SceneContext found in scene, please add one");
+				depA = container.Resolve<DependencyA>();
+				depC = container.Resolve<Pepe.DependencyC>();
+				Pepe.DependencyC_Rizolver.Injek(depC);
+
+			instance.Construc(depA, depC);
+        }
+    }
+
+using System;
+using System.Collections.Generic;
+
+namespace Injekko
+{
+	public class InjekkoContainer
+	{
+		public InjekkoContainer Parent { get; set; }
+		private static Dictionary<Type, object> _bindings = new Dictionary<Type, object>();
+
+		public void Bind<TInterface, TImplementation>() where TImplementation : TInterface, new()
+		{
+			_bindings[typeof(TInterface)] = new TImplementation();
+		}
+
+		public void BindInstance<TInterface>(TInterface instance)
+		{
+			_bindings[typeof(TInterface)] = instance;
+		}
+
+		public TInterface Resolve<TInterface>()
+		{
+			if (_bindings.TryGetValue(typeof(TInterface), out object value))
+				return (TInterface)value;
+			else if (Parent != null)
+				return Parent.Resolve<TInterface>();
+			else
+				throw new Exception($"No binding found for {typeof(TInterface).Name}");
+		}
+	}
+}

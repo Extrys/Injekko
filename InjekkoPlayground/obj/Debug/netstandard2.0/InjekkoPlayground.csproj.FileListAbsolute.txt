@@ -1,0 +1,13 @@
+C:\Users\Extrys\source\repos\InjekkoPlayground\bin\Debug\netstandard2.0\InjekkoPlayground.deps.json
+C:\Users\Extrys\source\repos\InjekkoPlayground\bin\Debug\netstandard2.0\InjekkoPlayground.dll
+C:\Users\Extrys\source\repos\InjekkoPlayground\bin\Debug\netstandard2.0\InjekkoPlayground.pdb
+C:\Users\Extrys\source\repos\InjekkoPlayground\bin\Debug\netstandard2.0\DependencyInjectionGeneratorLib.dll
+C:\Users\Extrys\source\repos\InjekkoPlayground\bin\Debug\netstandard2.0\DependencyInjectionGeneratorLib.pdb
+C:\Users\Extrys\source\repos\InjekkoPlayground\obj\Debug\netstandard2.0\InjekkoPlayground.csproj.AssemblyReference.cache
+C:\Users\Extrys\source\repos\InjekkoPlayground\obj\Debug\netstandard2.0\InjekkoPlayground.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Extrys\source\repos\InjekkoPlayground\obj\Debug\netstandard2.0\InjekkoPlayground.AssemblyInfoInputs.cache
+C:\Users\Extrys\source\repos\InjekkoPlayground\obj\Debug\netstandard2.0\InjekkoPlayground.AssemblyInfo.cs
+C:\Users\Extrys\source\repos\InjekkoPlayground\obj\Debug\netstandard2.0\InjekkoPlayground.csproj.CoreCompileInputs.cache
+C:\Users\Extrys\source\repos\InjekkoPlayground\obj\Debug\netstandard2.0\InjekkoP.B40FC155.Up2Date
+C:\Users\Extrys\source\repos\InjekkoPlayground\obj\Debug\netstandard2.0\InjekkoPlayground.dll
+C:\Users\Extrys\source\repos\InjekkoPlayground\obj\Debug\netstandard2.0\InjekkoPlayground.pdb

@@ -1,0 +1,96 @@
+{
+  "version": 3,
+  "targets": {
+    "net6.0": {
+      "InjekkoBinding/1.0.0": {
+        "type": "project",
+        "framework": ".NETStandard,Version=v2.0",
+        "compile": {
+          "bin/placeholder/InjekkoBinding.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/InjekkoBinding.dll": {}
+        }
+      }
+    }
+  },
+  "libraries": {
+    "InjekkoBinding/1.0.0": {
+      "type": "project",
+      "path": "../InjekkoBinding/InjekkoBinding.csproj",
+      "msbuildProject": "../InjekkoBinding/InjekkoBinding.csproj"
+    }
+  },
+  "projectFileDependencyGroups": {
+    "net6.0": [
+      "InjekkoBinding >= 1.0.0"
+    ]
+  },
+  "packageFolders": {
+    "C:\\Users\\Extrys\\.nuget\\packages\\": {}
+  },
+  "project": {
+    "version": "1.0.0",
+    "restore": {
+      "projectUniqueName": "C:\\Users\\Extrys\\source\\repos\\Injekko\\InjekkoPlayground\\InjekkoPlayground.csproj",
+      "projectName": "InjekkoPlayground",
+      "projectPath": "C:\\Users\\Extrys\\source\\repos\\Injekko\\InjekkoPlayground\\InjekkoPlayground.csproj",
+      "packagesPath": "C:\\Users\\Extrys\\.nuget\\packages\\",
+      "outputPath": "C:\\Users\\Extrys\\source\\repos\\Injekko\\InjekkoPlayground\\obj\\",
+      "projectStyle": "PackageReference",
+      "configFilePaths": [
+        "C:\\Users\\Extrys\\AppData\\Roaming\\NuGet\\NuGet.Config",
+        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+      ],
+      "originalTargetFrameworks": [
+        "net6.0"
+      ],
+      "sources": {
+        "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+        "https://api.nuget.org/v3/index.json": {}
+      },
+      "frameworks": {
+        "net6.0": {
+          "targetAlias": "net6.0",
+          "projectReferences": {
+            "C:\\Users\\Extrys\\source\\repos\\Injekko\\InjekkoBinding\\InjekkoBinding.csproj": {
+              "projectPath": "C:\\Users\\Extrys\\source\\repos\\Injekko\\InjekkoBinding\\InjekkoBinding.csproj"
+            }
+          }
+        }
+      },
+      "warningProperties": {
+        "warnAsError": [
+          "NU1605"
+        ]
+      },
+      "restoreAuditProperties": {
+        "enableAudit": "true",
+        "auditLevel": "low",
+        "auditMode": "direct"
+      }
+    },
+    "frameworks": {
+      "net6.0": {
+        "targetAlias": "net6.0",
+        "imports": [
+          "net461",
+          "net462",
+          "net47",
+          "net471",
+          "net472",
+          "net48",
+          "net481"
+        ],
+        "assetTargetFallback": true,
+        "warn": true,
+        "frameworkReferences": {
+          "Microsoft.NETCore.App": {
+            "privateAssets": "all"
+          }
+        },
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.302\\RuntimeIdentifierGraph.json"
+      }
+    }
+  }
+}
