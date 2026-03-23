@@ -8,6 +8,7 @@ obj/
 *.suo
 *.userosscache
 *.sln.docstates
+*.wsuo
 
 # Rider / JetBrains
 .idea/
@@ -16,6 +17,7 @@ obj/
 # Logs
 Logs/
 *.log
+InjekkoPlayground/Logs/*
 
 # Generated debug artifacts
 GeneratedCode.txt
