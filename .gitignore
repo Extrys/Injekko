@@ -1,0 +1,25 @@
+# Build
+bin/
+obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Rider / JetBrains
+.idea/
+*.iml
+
+# Logs
+Logs/
+*.log
+
+# Generated debug artifacts
+GeneratedCode.txt
+
+# OS
+.DS_Store
+Thumbs.db
