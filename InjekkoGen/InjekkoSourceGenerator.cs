@@ -121,12 +121,7 @@ namespace Injekko.Codegen
 			}
 
 			SourceText source = SourceText.From(sourceBuilder.ToString(), Encoding.UTF8);
-			SourceText source2 = SourceText.From("using System;\r\nusing System.Collections.Generic;\r\n\r\nnamespace Injekko\r\n{\r\n\tpublic class InjekkoContainer\r\n\t{\r\n\t\tpublic InjekkoContainer Parent { get; set; }\r\n\t\tprivate static Dictionary<Type, object> _bindings = new Dictionary<Type, object>();\r\n\r\n\t\tpublic void Bind<TInterface, TImplementation>() where TImplementation : TInterface, new()\r\n\t\t{\r\n\t\t\t_bindings[typeof(TInterface)] = new TImplementation();\r\n\t\t}\r\n\r\n\t\tpublic void BindInstance<TInterface>(TInterface instance)\r\n\t\t{\r\n\t\t\t_bindings[typeof(TInterface)] = instance;\r\n\t\t}\r\n\r\n\t\tpublic TInterface Resolve<TInterface>()\r\n\t\t{\r\n\t\t\tif (_bindings.TryGetValue(typeof(TInterface), out object value))\r\n\t\t\t\treturn (TInterface)value;\r\n\t\t\telse if (Parent != null)\r\n\t\t\t\treturn Parent.Resolve<TInterface>();\r\n\t\t\telse\r\n\t\t\t\tthrow new Exception($\"No binding found for {typeof(TInterface).Name}\");\r\n\t\t}\r\n\t}\r\n}\r\n"
-, Encoding.UTF8);
-			context.AddSource("ContainerGenerated", source2);
 			context.AddSource("InjekkoGenerated", source);
-			File.WriteAllText(@"C:\Users\Extrys\source\repos\Injekko\InjekkoPlayground\Logs\GeneratedCode.txt", /*attributeSource.ToString() + "\n" +*/ source.ToString() + "\n" + source2.ToString());
-
 		}
 
 		static bool IsComponent(in GeneratorExecutionContext context, INamedTypeSymbol classSymbol)
