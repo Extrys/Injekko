@@ -22,6 +22,8 @@ public class Context : Component
 		
 	}
 
+	public IInjekScope Scope => container;
+
 	public T Resolve<T>() => container.Resolve<T>();
 }
 

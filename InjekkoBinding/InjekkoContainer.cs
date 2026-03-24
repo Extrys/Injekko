@@ -3,9 +3,9 @@ using System.Collections.Generic;
 
 namespace Injekko
 {
-	public class InjekkoContainer
+	public class InjekkoContainer : IInjekScope
 	{
-		public InjekkoContainer Parent { get; set; }
+		public IInjekScope Parent { get; set; }
 		readonly Dictionary<Type, object> bindings = new();
 
 		public void Bind<TInterface, TImplementation>() where TImplementation : TInterface, new() => bindings[typeof(TInterface)] = new TImplementation();
@@ -30,7 +30,7 @@ namespace Injekko
 		{
 			if (TryResolve<TInterface>(out var instance))
 				return instance;
-			throw new InvalidOperationException($"No binding found for {typeof(TInterface).FullName}");
+			throw new InjekException($"No binding found for {typeof(TInterface).FullName}");
 		}
 	}
 }
