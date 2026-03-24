@@ -1,9 +1,8 @@
-﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Text;
 
@@ -12,7 +11,30 @@ namespace Injekko.Codegen
 	[Generator]
 	public class InjekkoSourceGenerator : ISourceGenerator
 	{
-		//Dictionary<>
+		private static readonly DiagnosticDescriptor MissingAttributeRule = new(
+			id: "INJEK001",
+			title: "Missing Injek attribute definition",
+			messageFormat: "Could not find Injekko.InjekAttribute in the compilation.",
+			category: "Injekko",
+			defaultSeverity: DiagnosticSeverity.Error,
+			isEnabledByDefault: true);
+
+		private static readonly DiagnosticDescriptor MultipleInjekMethodsRule = new(
+			id: "INJEK002",
+			title: "Only one [Injek] method is supported per type",
+			messageFormat: "Type '{0}' declares multiple [Injek] methods. Keep a single pseudo-constructor method per type.",
+			category: "Injekko",
+			defaultSeverity: DiagnosticSeverity.Error,
+			isEnabledByDefault: true);
+
+		private static readonly DiagnosticDescriptor InvalidInjekMethodRule = new(
+			id: "INJEK003",
+			title: "Invalid [Injek] method",
+			messageFormat: "Method '{0}' is not a supported [Injek] method: {1}",
+			category: "Injekko",
+			defaultSeverity: DiagnosticSeverity.Error,
+			isEnabledByDefault: true);
+
 		public void Initialize(GeneratorInitializationContext context)
 		{
 			context.RegisterForSyntaxNotifications(() => new InjekMethodReceiver());
@@ -20,135 +42,197 @@ namespace Injekko.Codegen
 
 		public void Execute(GeneratorExecutionContext context)
 		{
-			var sourceBuilder = new StringBuilder();
-			//var attributeBuilder = new StringBuilder();
-			//attributeBuilder.AppendLine("using System;");
-			//attributeBuilder.AppendLine("namespace Injekko");
-			//attributeBuilder.AppendLine("{");
-			//attributeBuilder.AppendLine("    [AttributeUsage(AttributeTargets.Method)]");
-			//attributeBuilder.AppendLine("    internal class InjekAttribute : Attribute {}");
-			//attributeBuilder.AppendLine("}");
-			//SourceText attributeSource = SourceText.From(attributeBuilder.ToString(), Encoding.UTF8);
-			//context.AddSource("InjekAttribute", attributeSource);
+			if (context.SyntaxReceiver is not InjekMethodReceiver receiver)
+				return;
+
 			var compilation = context.Compilation;
 			var injekAttributeSymbol = compilation.GetTypeByMetadataName("Injekko.InjekAttribute");
-			if (context.SyntaxReceiver is InjekMethodReceiver receiver)
+			if (injekAttributeSymbol == null)
 			{
-				foreach (var method in receiver.MethodsWithInjectAttribute)
-				{
-					var model = compilation.GetSemanticModel(method.SyntaxTree);
-					var methodSymbol = model.GetDeclaredSymbol(method) as IMethodSymbol;
-					if (methodSymbol == null)
-						continue;
-
-					var classSymbol = methodSymbol.ContainingType;
-					var className = classSymbol.Name;
-					var classNamespace = classSymbol.ContainingNamespace.ToDisplayString();
-					var globalNs = classSymbol.ContainingNamespace.IsGlobalNamespace;
-
-					var parameters = methodSymbol.Parameters;
-
-					if (!globalNs)
-					{
-						sourceBuilder.AppendLine($"namespace {classNamespace}");
-						sourceBuilder.AppendLine("{");
-					}
-
-					sourceBuilder.AppendLine($"    public static class {className}_Rizolver");
-					sourceBuilder.AppendLine("    {");
-					StringBuilder parameterResolution = new StringBuilder();
-					foreach (var parameter in parameters)
-					{
-						var paramTypeSymbol = parameter.Type;
-						var paramName = parameter.Name;
-						var paramType = paramTypeSymbol.ToDisplayString();
-						bool hasInjekMethod = false;
-						var currentType = paramTypeSymbol;
-						while (currentType != null)
-						{
-							foreach (var mthd in currentType.GetMembers().OfType<IMethodSymbol>())
-							{
-								if (mthd.DeclaredAccessibility == Accessibility.Public)
-								{
-									foreach (var attribute in mthd.GetAttributes())
-									{
-										if (SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, injekAttributeSymbol))
-										{
-											hasInjekMethod = true;
-											break;
-										}
-									}
-								}
-								if (hasInjekMethod)
-									break;
-							}
-							if (hasInjekMethod)
-								break;
-
-							currentType = currentType.BaseType;
-						}
-
-						sourceBuilder.AppendLine($"		static {paramType} {paramName} = null;");
-
-						parameterResolution.AppendLine($"				{paramName} = container.Resolve<{paramType}>();");
-						if (hasInjekMethod)
-							parameterResolution.AppendLine($"				{paramType}_Rizolver.Injek({paramName});");
-					}
-
-					sourceBuilder.AppendLine();
-					sourceBuilder.AppendLine($"        public static void Injek(this {className} instance)");
-					sourceBuilder.AppendLine("        {");
-					if (IsComponent(context, classSymbol))
-					{
-						sourceBuilder.AppendLine($"				Context container = instance.GetComponent<Context>();");
-						sourceBuilder.AppendLine($"				if(container == null)");
-						sourceBuilder.AppendLine($"					container = Project.CurrentScene.FindObjectOfType<SceneContext>();");
-					}
-					else
-					{
-						sourceBuilder.AppendLine($"					Context container = Project.CurrentScene.FindObjectOfType<SceneContext>();");
-					}
-					sourceBuilder.AppendLine($"				if(container == null)");
-					sourceBuilder.AppendLine($"					throw new System.Exception(\"No SceneContext found in scene, please add one\");");
-					sourceBuilder.AppendLine(parameterResolution.ToString());										
-					sourceBuilder.AppendLine($"			instance.{methodSymbol.Name}({string.Join(", ", parameters.Select(p => p.Name))});");
-					sourceBuilder.AppendLine("        }"); 
-					sourceBuilder.AppendLine("    }");
-
-					if (!globalNs)
-						sourceBuilder.AppendLine("}");
-				}
+				context.ReportDiagnostic(Diagnostic.Create(MissingAttributeRule, Location.None));
+				return;
 			}
 
-			SourceText source = SourceText.From(sourceBuilder.ToString(), Encoding.UTF8);
-			SourceText source2 = SourceText.From("using System;\r\nusing System.Collections.Generic;\r\n\r\nnamespace Injekko\r\n{\r\n\tpublic class InjekkoContainer\r\n\t{\r\n\t\tpublic InjekkoContainer Parent { get; set; }\r\n\t\tprivate static Dictionary<Type, object> _bindings = new Dictionary<Type, object>();\r\n\r\n\t\tpublic void Bind<TInterface, TImplementation>() where TImplementation : TInterface, new()\r\n\t\t{\r\n\t\t\t_bindings[typeof(TInterface)] = new TImplementation();\r\n\t\t}\r\n\r\n\t\tpublic void BindInstance<TInterface>(TInterface instance)\r\n\t\t{\r\n\t\t\t_bindings[typeof(TInterface)] = instance;\r\n\t\t}\r\n\r\n\t\tpublic TInterface Resolve<TInterface>()\r\n\t\t{\r\n\t\t\tif (_bindings.TryGetValue(typeof(TInterface), out object value))\r\n\t\t\t\treturn (TInterface)value;\r\n\t\t\telse if (Parent != null)\r\n\t\t\t\treturn Parent.Resolve<TInterface>();\r\n\t\t\telse\r\n\t\t\t\tthrow new Exception($\"No binding found for {typeof(TInterface).Name}\");\r\n\t\t}\r\n\t}\r\n}\r\n"
-, Encoding.UTF8);
-			context.AddSource("ContainerGenerated", source2);
-			context.AddSource("InjekkoGenerated", source);
-			File.WriteAllText(@"C:\Users\Extrys\source\repos\Injekko\InjekkoPlayground\Logs\GeneratedCode.txt", /*attributeSource.ToString() + "\n" +*/ source.ToString() + "\n" + source2.ToString());
+			var methods = GetAnnotatedMethods(compilation, receiver.CandidateMethods, injekAttributeSymbol)
+				.ToList();
+			ReportDuplicateInjekMethods(context, methods);
 
+			var sourceBuilder = new StringBuilder();
+			foreach (var methodSymbol in methods)
+			{
+				if (!TryValidateInjekMethod(context, methodSymbol))
+					continue;
+
+				AppendResolver(context, sourceBuilder, injekAttributeSymbol, methodSymbol);
+			}
+
+			context.AddSource("InjekkoGenerated", SourceText.From(sourceBuilder.ToString(), Encoding.UTF8));
 		}
 
-		static bool IsComponent(in GeneratorExecutionContext context, INamedTypeSymbol classSymbol)
+		private static IEnumerable<IMethodSymbol> GetAnnotatedMethods(
+			Compilation compilation,
+			IEnumerable<MethodDeclarationSyntax> candidateMethods,
+			INamedTypeSymbol injekAttributeSymbol)
 		{
-			var componentType = context.Compilation.GetTypeByMetadataName("Component");
-
-			bool inheritsFromComponent = false;
-			if (componentType != null)
+			foreach (var method in candidateMethods)
 			{
-				var baseType = classSymbol.BaseType;
-				while (baseType != null)
+				var model = compilation.GetSemanticModel(method.SyntaxTree);
+				if (model.GetDeclaredSymbol(method) is not IMethodSymbol methodSymbol)
+					continue;
+
+				if (methodSymbol.GetAttributes().Any(attribute => SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, injekAttributeSymbol)))
+					yield return methodSymbol;
+			}
+		}
+
+		private static void ReportDuplicateInjekMethods(GeneratorExecutionContext context, List<IMethodSymbol> methods)
+		{
+			foreach (var group in methods.GroupBy(method => method.ContainingType, SymbolEqualityComparer.Default))
+			{
+				if (group.Count() <= 1)
+					continue;
+
+				foreach (var method in group)
 				{
-					if (SymbolEqualityComparer.Default.Equals(baseType, componentType))
-					{
-						inheritsFromComponent = true;
-						break;
-					}
-					baseType = baseType.BaseType;
+					context.ReportDiagnostic(Diagnostic.Create(
+						MultipleInjekMethodsRule,
+						method.Locations.FirstOrDefault(),
+						method.ContainingType.ToDisplayString()));
 				}
 			}
+		}
 
-			return inheritsFromComponent;
+		private static bool TryValidateInjekMethod(GeneratorExecutionContext context, IMethodSymbol methodSymbol)
+		{
+			if (methodSymbol.MethodKind != MethodKind.Ordinary)
+				return ReportInvalid(context, methodSymbol, "it must be an ordinary instance method");
+
+			if (methodSymbol.IsStatic)
+				return ReportInvalid(context, methodSymbol, "static methods cannot act as pseudo-constructors");
+
+			if (methodSymbol.DeclaredAccessibility != Accessibility.Public)
+				return ReportInvalid(context, methodSymbol, "it must be public so generated code can call it");
+
+			if (methodSymbol.IsGenericMethod)
+				return ReportInvalid(context, methodSymbol, "generic [Injek] methods are not supported");
+
+			if (methodSymbol.ReturnsVoid == false)
+				return ReportInvalid(context, methodSymbol, "it must return void");
+
+			if (methodSymbol.ContainingType == null)
+				return ReportInvalid(context, methodSymbol, "it must belong to a named type");
+
+			return true;
+		}
+
+		private static bool ReportInvalid(GeneratorExecutionContext context, IMethodSymbol methodSymbol, string reason)
+		{
+			context.ReportDiagnostic(Diagnostic.Create(
+				InvalidInjekMethodRule,
+				methodSymbol.Locations.FirstOrDefault(),
+				methodSymbol.ToDisplayString(),
+				reason));
+			return false;
+		}
+
+		private static void AppendResolver(
+			GeneratorExecutionContext context,
+			StringBuilder sourceBuilder,
+			INamedTypeSymbol injekAttributeSymbol,
+			IMethodSymbol methodSymbol)
+		{
+			var classSymbol = methodSymbol.ContainingType;
+			var className = classSymbol.Name;
+			var classNamespace = classSymbol.ContainingNamespace.ToDisplayString();
+			var globalNs = classSymbol.ContainingNamespace.IsGlobalNamespace;
+			var parameters = methodSymbol.Parameters;
+
+			if (!globalNs)
+			{
+				sourceBuilder.AppendLine($"namespace {classNamespace}");
+				sourceBuilder.AppendLine("{");
+			}
+
+			sourceBuilder.AppendLine($"    public static class {className}_Rizolver");
+			sourceBuilder.AppendLine("    {");
+			sourceBuilder.AppendLine();
+			sourceBuilder.AppendLine($"        public static void Injek(this {className} instance)");
+			sourceBuilder.AppendLine("        {");
+
+			AppendContainerLookup(context, sourceBuilder, classSymbol);
+			sourceBuilder.AppendLine("                if(container == null)");
+			sourceBuilder.AppendLine("                    throw new System.Exception(\"No SceneContext found in scene, please add one\");");
+
+			foreach (var parameter in parameters)
+			{
+				var paramType = parameter.Type.ToDisplayString();
+				var paramName = parameter.Name;
+
+				sourceBuilder.AppendLine($"                var {paramName} = container.Resolve<{paramType}>();");
+				if (HasInjectableMethod(parameter.Type, injekAttributeSymbol))
+					sourceBuilder.AppendLine($"                {paramType}_Rizolver.Injek({paramName});");
+			}
+
+			sourceBuilder.AppendLine($"            instance.{methodSymbol.Name}({string.Join(", ", parameters.Select(p => p.Name))});");
+			sourceBuilder.AppendLine("        }");
+			sourceBuilder.AppendLine("    }");
+
+			if (!globalNs)
+				sourceBuilder.AppendLine("}");
+		}
+
+		private static void AppendContainerLookup(
+			GeneratorExecutionContext context,
+			StringBuilder sourceBuilder,
+			INamedTypeSymbol classSymbol)
+		{
+			if (IsComponent(context, classSymbol))
+			{
+				sourceBuilder.AppendLine("                Context container = instance.GetComponent<Context>();");
+				sourceBuilder.AppendLine("                if(container == null)");
+				sourceBuilder.AppendLine("                    container = Project.CurrentScene.FindObjectOfType<SceneContext>();");
+				return;
+			}
+
+			sourceBuilder.AppendLine("                Context container = Project.CurrentScene.FindObjectOfType<SceneContext>();");
+		}
+
+		private static bool HasInjectableMethod(ITypeSymbol typeSymbol, INamedTypeSymbol injekAttributeSymbol)
+		{
+			var currentType = typeSymbol;
+			while (currentType != null)
+			{
+				foreach (var method in currentType.GetMembers().OfType<IMethodSymbol>())
+				{
+					if (method.DeclaredAccessibility != Accessibility.Public || method.IsStatic)
+						continue;
+
+					if (method.GetAttributes().Any(attribute => SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, injekAttributeSymbol)))
+						return true;
+				}
+
+				currentType = currentType.BaseType;
+			}
+
+			return false;
+		}
+
+		private static bool IsComponent(in GeneratorExecutionContext context, INamedTypeSymbol classSymbol)
+		{
+			var componentType = context.Compilation.GetTypeByMetadataName("Component");
+			if (componentType == null)
+				return false;
+
+			var baseType = classSymbol.BaseType;
+			while (baseType != null)
+			{
+				if (SymbolEqualityComparer.Default.Equals(baseType, componentType))
+					return true;
+
+				baseType = baseType.BaseType;
+			}
+
+			return false;
 		}
 	}
 }
