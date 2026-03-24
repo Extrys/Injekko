@@ -20,7 +20,12 @@ public class Player : Component
 	public override void Awake()
 	{
 		Console.WriteLine("Player awake");
-		this.Injek();
+		Context scopeSource = GetComponent<GameObjectContext>();
+		scopeSource ??=  GetComponent<SceneContext>(); //should look in the scene but its just an example
+		if (scopeSource == null)
+			throw new InjekException("No explicit scope source found for Player. Add a Context component before calling Injek.");
+
+		//this.Injek(scopeSource.Scope); //Failing to compile this commit is not generating code yet
 	}
 }
 

@@ -1,4 +1,4 @@
-﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 using System.Collections.Generic;
@@ -34,6 +34,14 @@ namespace Injekko.Codegen
 			defaultSeverity: DiagnosticSeverity.Error,
 			isEnabledByDefault: true);
 
+		static readonly DiagnosticDescriptor MissingScopeRule = new(
+			id: "INJEK004",
+			title: "Missing IInjekScope definition",
+			messageFormat: "Could not find Injekko.IInjekScope in the compilation.",
+			category: "Injekko",
+			defaultSeverity: DiagnosticSeverity.Error,
+			isEnabledByDefault: true);
+
 		public void Initialize(GeneratorInitializationContext context) => context.RegisterForSyntaxNotifications(() => new InjekMethodReceiver());
 
 		public void Execute(GeneratorExecutionContext context)
@@ -43,9 +51,16 @@ namespace Injekko.Codegen
 
 			var compilation = context.Compilation;
 			var injekAttributeSymbol = compilation.GetTypeByMetadataName("Injekko.InjekAttribute");
-			if (injekAttributeSymbol == null)
+			if (injekAttributeSymbol == null) // checks that the attribute exists in the compilation
 			{
 				context.ReportDiagnostic(Diagnostic.Create(MissingAttributeRule, Location.None));
+				return;
+			}
+
+			var injekScopeSymbol = compilation.GetTypeByMetadataName("Injekko.IInjekScope");
+			if (injekScopeSymbol == null) // checks that the attribute exists in the compilation
+			{
+				context.ReportDiagnostic(Diagnostic.Create(MissingScopeRule, Location.None));
 				return;
 			}
 
@@ -58,7 +73,7 @@ namespace Injekko.Codegen
 				if (!TryValidateInjekMethod(context, methodSymbol))
 					continue;
 
-				AppendResolver(context, sourceBuilder, injekAttributeSymbol, methodSymbol);
+				AppendResolver(sourceBuilder, injekAttributeSymbol, methodSymbol);
 			}
 
 			context.AddSource("InjekkoGenerated", SourceText.From(sourceBuilder.ToString(), Encoding.UTF8));
@@ -124,13 +139,16 @@ namespace Injekko.Codegen
 			}
 		}
 
-		static void AppendResolver(GeneratorExecutionContext context, StringBuilder sourceBuilder, INamedTypeSymbol injekAttributeSymbol, IMethodSymbol methodSymbol)
+		static void AppendResolver(StringBuilder sourceBuilder, INamedTypeSymbol injekAttributeSymbol, IMethodSymbol methodSymbol)
 		{
 			var classSymbol = methodSymbol.ContainingType;
 			var className = classSymbol.Name;
 			var classNamespace = classSymbol.ContainingNamespace.ToDisplayString();
 			var globalNs = classSymbol.ContainingNamespace.IsGlobalNamespace; // to check if the namespace is needed in the generated code or not
 			var parameters = methodSymbol.Parameters;
+			var instanceTypeName = classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat); // to avoid naming errors
+
+			//also using global:: to avoid conflicts with user code that might have the same names as system types
 
 			if (!globalNs) // generate namespace oppening 
 			{
@@ -141,21 +159,23 @@ namespace Injekko.Codegen
 			sourceBuilder.AppendLine($"	public static class {className}_Rizolver");
 			sourceBuilder.AppendLine("	{");
 			sourceBuilder.AppendLine();
-			sourceBuilder.AppendLine($"		public static void Injek(this {className} instance)");
+			sourceBuilder.AppendLine($"		public static void Injek(this {instanceTypeName} instance, global::Injekko.IInjekScope scope)"); // the scope is passed as parameter now
 			sourceBuilder.AppendLine("		{");
+			sourceBuilder.AppendLine("			if(instance == null)");
+			sourceBuilder.AppendLine("				throw new global::System.ArgumentNullException(nameof(instance));");
+			sourceBuilder.AppendLine("			if(scope == null)");
+			sourceBuilder.AppendLine("				throw new global::System.ArgumentNullException(nameof(scope));");
 
-			AppendContainerLookup(context, sourceBuilder, classSymbol);
-			sourceBuilder.AppendLine("			if(container == null)"); //If any container found then error time!
-			sourceBuilder.AppendLine("				throw new System.Exception(\"No Context found, please add one, maybe you are missing a SceneContext component?\");");
+			//TODO: try using the new ``` ``` string interpolation syntax from C# 11 so its more readable
 
-			foreach (var parameter in parameters) // resolve each parameter recursively
+			foreach (var parameter in parameters)
 			{
-				var paramType = parameter.Type.ToDisplayString();
+				var paramType = parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 				var paramName = parameter.Name;
 
-				sourceBuilder.AppendLine($"			var {paramName} = container.Resolve<{paramType}>();");
+				sourceBuilder.AppendLine($"			var {paramName} = scope.Resolve<{paramType}>();");
 				if (HasInjectableMethod(parameter.Type, injekAttributeSymbol))
-					sourceBuilder.AppendLine($"			{paramType}_Rizolver.Injek({paramName});");
+					sourceBuilder.AppendLine($"			{paramType}_Rizolver.Injek({paramName}, scope);");
 			}
 
 			sourceBuilder.AppendLine($"			instance.{methodSymbol.Name}({string.Join(", ", parameters.Select(p => p.Name))});");
@@ -166,58 +186,21 @@ namespace Injekko.Codegen
 				sourceBuilder.AppendLine("}");
 		}
 
-		private static void AppendContainerLookup(GeneratorExecutionContext context, StringBuilder sourceBuilder, INamedTypeSymbol classSymbol)
+		static bool HasInjectableMethod(ITypeSymbol typeSymbol, INamedTypeSymbol injekAttributeSymbol)
 		{
-			if (IsComponent(context, classSymbol)) //TODO: Fuck! i just noticed im using here Unity api, i might need to plan something to let the dev define custom lookups or so...
+			var currentType = typeSymbol;
+			while (currentType != null)
 			{
-				sourceBuilder.AppendLine("			Context container = instance.GetComponent<Context>();"); // look for local context
-				sourceBuilder.AppendLine("			if(container == null)");
-				sourceBuilder.AppendLine("				container = Project.CurrentScene.FindObjectOfType<SceneContext>();"); // then fallback to scene context
-				return;
-			}
-
-			sourceBuilder.AppendLine("			Context container = Project.CurrentScene.FindObjectOfType<ProjectContext>();"); // fallback to project context on non components
-			//TODO: maybe also add a custom container parameter to the method so factories can pass a specific container?
-		}
-
-		private static bool HasInjectableMethod(ITypeSymbol typeSymbol, INamedTypeSymbol injekAttributeSymbol)
-		{
-			var currentType = typeSymbol; // the parameter type
-			while (currentType != null) 
-			{
-				foreach (var method in currentType.GetMembers().OfType<IMethodSymbol>()) // for each method in this type
+				foreach (var method in currentType.GetMembers().OfType<IMethodSymbol>())
 				{
-					if (method.DeclaredAccessibility != Accessibility.Public || method.IsStatic) // only consider public instance methods as injectable
+					if (method.DeclaredAccessibility != Accessibility.Public || method.IsStatic)
 						continue;
 
 					if (method.GetAttributes().Any(attribute => SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, injekAttributeSymbol)))
-						return true; // has injek method, so this type needs to be injected as well
+						return true;
 				}
 
-				currentType = currentType.BaseType; //if no method found, then check the base type, because maybe the pseudo-constructor is declared in a parent class...
-			}
-
-			return false;
-		}
-
-		static bool IsComponent(GeneratorExecutionContext context, INamedTypeSymbol classSymbol)
-		{
-			//TODO: Add some kind of way to configure this for non-Unity users (Engine agnostic)
-			// Maybe make some way to override this for other engines in a custom way?
-			// It would be cool to add some kind of template class that users can write down onto a special folder
-			// because unity has the GetComponent thing but other engines might have different ways to look for a container
-			// Definitelly i need to change this to UnityEngine.Component instead for unity testing
-			var componentType = context.Compilation.GetTypeByMetadataName("Component"); // this is the class needed to check against the class symbol
-			if (componentType == null)
-				return false;
-
-			var baseType = classSymbol.BaseType; // to check if class symbol inheriting the component type
-			while (baseType != null)
-			{
-				if (SymbolEqualityComparer.Default.Equals(baseType, componentType))
-					return true;
-
-				baseType = baseType.BaseType; // fallback to next parent type if not found
+				currentType = currentType.BaseType;
 			}
 
 			return false;
