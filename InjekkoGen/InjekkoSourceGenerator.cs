@@ -2,18 +2,19 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 
 namespace Injekko.Codegen
 {
 	[Generator]
-	public class InjekkoSourceGenerator : ISourceGenerator
+	public sealed class InjekkoSourceGenerator : IIncrementalGenerator
 	{
 		static readonly DiagnosticDescriptor MissingAttributeRule = new(
 			id: "INJEK001",
 			title: "Missing Injek attribute definition",
-			messageFormat: "Could not find Injekko.InjekAttribute in the compilation.",
+			messageFormat: "Could not find Injekko.InjekAttribute in the compilation",
 			category: "Injekko",
 			defaultSeverity: DiagnosticSeverity.Error,
 			isEnabledByDefault: true);
@@ -21,7 +22,7 @@ namespace Injekko.Codegen
 		static readonly DiagnosticDescriptor MultipleInjekMethodsRule = new(
 			id: "INJEK002",
 			title: "Only one [Injek] method is supported per type",
-			messageFormat: "Type '{0}' declares multiple [Injek] methods. Keep a single pseudo-constructor method per type.",
+			messageFormat: "Type '{0}' declares multiple [Injek] methods, Keep a single pseudo-constructor method per type",
 			category: "Injekko",
 			defaultSeverity: DiagnosticSeverity.Error,
 			isEnabledByDefault: true);
@@ -37,19 +38,54 @@ namespace Injekko.Codegen
 		static readonly DiagnosticDescriptor MissingScopeRule = new(
 			id: "INJEK004",
 			title: "Missing IInjekScope definition",
-			messageFormat: "Could not find Injekko.IInjekScope in the compilation.",
+			messageFormat: "Could not find Injekko.IInjekScope in the compilation",
 			category: "Injekko",
 			defaultSeverity: DiagnosticSeverity.Error,
 			isEnabledByDefault: true);
 
-		public void Initialize(GeneratorInitializationContext context) => context.RegisterForSyntaxNotifications(() => new InjekMethodReceiver());
-
-		public void Execute(GeneratorExecutionContext context)
+		public void Initialize(IncrementalGeneratorInitializationContext context)
 		{
-			if (context.SyntaxReceiver is not InjekMethodReceiver receiver)
-				return;
+			var injekMethods = context.SyntaxProvider
+				.CreateSyntaxProvider(static (node, _) => IsCandidateMethod(node), static (generatorContext, _) => GetAnnotatedMethod(generatorContext))
+				.Where(static methodSymbol => methodSymbol != null)
+				.Select(static (methodSymbol, _) => methodSymbol);
 
-			var compilation = context.Compilation;
+			var compilationAndMethods = context.CompilationProvider.Combine(injekMethods.Collect());
+			context.RegisterSourceOutput(compilationAndMethods, static (productionContext, source) => Execute(productionContext, source.Left, source.Right));
+		}
+
+		static bool IsCandidateMethod(SyntaxNode node)
+		{
+			if (node is not MethodDeclarationSyntax methodDeclaration)
+				return false;
+
+			foreach (var attributeList in methodDeclaration.AttributeLists)
+				foreach (var attribute in attributeList.Attributes)
+					if (LooksLikeInjekAttribute(attribute.Name.ToString()))
+						return true;
+			return false;
+		}
+
+		static IMethodSymbol GetAnnotatedMethod(GeneratorSyntaxContext context)
+		{
+			if (context.Node is not MethodDeclarationSyntax methodNode)
+				return null;
+
+			if (context.SemanticModel.GetDeclaredSymbol(methodNode) is not IMethodSymbol methodSymbol)
+				return null;
+
+			foreach (var attribute in methodSymbol.GetAttributes())
+			{
+				var attributeType = attribute.AttributeClass?.ToDisplayString();
+				if (attributeType == "Injekko.InjekAttribute")
+					return methodSymbol;
+			}
+
+			return null;
+		}
+
+		static void Execute(SourceProductionContext context, Compilation compilation, ImmutableArray<IMethodSymbol> candidateMethods)
+		{
 			var injekAttributeSymbol = compilation.GetTypeByMetadataName("Injekko.InjekAttribute");
 			if (injekAttributeSymbol == null) // checks that the attribute exists in the compilation
 			{
@@ -64,7 +100,7 @@ namespace Injekko.Codegen
 				return;
 			}
 
-			var methods = GetAnnotatedMethods(compilation, receiver.CandidateMethods, injekAttributeSymbol).ToList();
+			var methods = DistinctMethods(candidateMethods);
 			ReportDuplicateInjekMethods(context, methods);
 
 			var sourceBuilder = new StringBuilder();
@@ -76,25 +112,29 @@ namespace Injekko.Codegen
 				AppendResolver(sourceBuilder, injekAttributeSymbol, methodSymbol);
 			}
 
-			context.AddSource("InjekkoGenerated", SourceText.From(sourceBuilder.ToString(), Encoding.UTF8));
+			if (sourceBuilder.Length > 0)
+				context.AddSource("InjekkoGenerated.g.cs", SourceText.From(sourceBuilder.ToString(), Encoding.UTF8));
 		}
 
-		static IEnumerable<IMethodSymbol> GetAnnotatedMethods(Compilation compilation, IEnumerable<MethodDeclarationSyntax> candidateMethods, INamedTypeSymbol injekAttributeSymbol)
+		static List<IMethodSymbol> DistinctMethods(ImmutableArray<IMethodSymbol> methods)
 		{
-			foreach (var methodNode in candidateMethods)
+			var result = new List<IMethodSymbol>(methods.Length);
+			foreach (var method in methods)
 			{
-				var model = compilation.GetSemanticModel(methodNode.SyntaxTree);
-				if (model.GetDeclaredSymbol(methodNode) is not IMethodSymbol methodSymbol)
+				if (method == null)
 					continue;
 
-				if (methodSymbol.GetAttributes().Any(attribute => SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, injekAttributeSymbol)))
-					yield return methodSymbol;
+				var alreadyAdded = result.Any(existing => SymbolEqualityComparer.Default.Equals(existing, method));
+				if (!alreadyAdded)
+					result.Add(method);
 			}
+
+			return result;
 		}
 
-		static void ReportDuplicateInjekMethods(GeneratorExecutionContext context, IEnumerable<IMethodSymbol> methods)
+		static void ReportDuplicateInjekMethods(SourceProductionContext context, IEnumerable<IMethodSymbol> methods)
 		{
-			var groupedByType = methods.GroupBy(m => m.ContainingType);
+			var groupedByType = methods.GroupBy(m => m.ContainingType, SymbolEqualityComparer.Default);
 			foreach (var group in groupedByType)
 			{
 				if (group.Count() <= 1)
@@ -110,7 +150,7 @@ namespace Injekko.Codegen
 			}
 		}
 
-		static bool TryValidateInjekMethod(GeneratorExecutionContext context, IMethodSymbol methodSymbol)
+		static bool TryValidateInjekMethod(SourceProductionContext context, IMethodSymbol methodSymbol)
 		{
 			if (methodSymbol.MethodKind != MethodKind.Ordinary) // a normal method, not a constructor, or whatever
 				return ReportInvalid(context, methodSymbol, "it must be an ordinary instance method");
@@ -132,7 +172,7 @@ namespace Injekko.Codegen
 
 			return true;
 
-			static bool ReportInvalid(GeneratorExecutionContext context, IMethodSymbol methodSymbol, string reason) // shortener for reporting invalid methods easier
+			static bool ReportInvalid(SourceProductionContext context, IMethodSymbol methodSymbol, string reason)	 // shortener for reporting invalid methods easier
 			{
 				context.ReportDiagnostic(Diagnostic.Create(InvalidInjekMethodRule, methodSymbol.Locations.FirstOrDefault(), methodSymbol.ToDisplayString(), reason));
 				return false;
@@ -158,7 +198,6 @@ namespace Injekko.Codegen
 
 			sourceBuilder.AppendLine($"	public static class {className}_Rizolver");
 			sourceBuilder.AppendLine("	{");
-			sourceBuilder.AppendLine();
 			sourceBuilder.AppendLine($"		public static void Injek(this {instanceTypeName} instance, global::Injekko.IInjekScope scope)"); // the scope is passed as parameter now
 			sourceBuilder.AppendLine("		{");
 			sourceBuilder.AppendLine("			if(instance == null)");
@@ -205,5 +244,11 @@ namespace Injekko.Codegen
 
 			return false;
 		}
+
+		static bool LooksLikeInjekAttribute(string attributeName)
+			=> attributeName == "Injek"
+			|| attributeName == "Injekko.Injek"
+			|| attributeName == "InjekAttribute"
+			|| attributeName == "Injekko.InjekAttribute";
 	}
 }
