@@ -25,3 +25,4 @@ GeneratedCode.txt
 # OS
 .DS_Store
 Thumbs.db
+.dotnet/.dotnet/
