@@ -6,22 +6,14 @@ namespace Injekko
 	public class InjekkoContainer
 	{
 		public InjekkoContainer Parent { get; set; }
-		readonly Dictionary<Type, object> _bindings = new();
+		readonly Dictionary<Type, object> bindings = new();
 
-
-		public void Bind<TInterface, TImplementation>() where TImplementation : TInterface, new()
-		{
-			_bindings[typeof(TInterface)] = new TImplementation();
-		}
-
-		public void BindInstance<TInterface>(TInterface instance)
-		{
-			_bindings[typeof(TInterface)] = instance;
-		}
+		public void Bind<TInterface, TImplementation>() where TImplementation : TInterface, new() => bindings[typeof(TInterface)] = new TImplementation();
+		public void BindInstance<TInterface>(TInterface instance) => bindings[typeof(TInterface)] = instance;
 
 		public bool TryResolve<TInterface>(out TInterface instance)
 		{
-			if (_bindings.TryGetValue(typeof(TInterface), out var value))
+			if (bindings.TryGetValue(typeof(TInterface), out var value))
 			{
 				instance = (TInterface)value;
 				return true;
@@ -38,7 +30,6 @@ namespace Injekko
 		{
 			if (TryResolve<TInterface>(out var instance))
 				return instance;
-
 			throw new InvalidOperationException($"No binding found for {typeof(TInterface).FullName}");
 		}
 	}
