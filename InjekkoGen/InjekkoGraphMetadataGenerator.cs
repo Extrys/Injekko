@@ -39,11 +39,17 @@ namespace Injekko.Codegen
 			ImmutableArray<IMethodSymbol> candidateMethods,
 			ImmutableArray<FucktoryTargetModel> candidateFucktories)
 		{
+			if (candidateMethods.IsDefaultOrEmpty && candidateFucktories.IsDefaultOrEmpty)
+				return;
+
 			if (compilation.GetTypeByMetadataName("Injekko.InjekGraphMetadata") == null)
 				return;
 
 			var methods = InjekkoGeneratorDiscovery.DistinctMethods(candidateMethods);
 			var fucktories = InjekkoGeneratorDiscovery.DistinctFucktories(candidateFucktories);
+			if (methods.Count == 0 && fucktories.Count == 0)
+				return;
+
 			var sourceBuilder = new StringBuilder();
 			InjekkoGraphMetadataGeneration.AppendGraphMetadata(sourceBuilder, methods, fucktories);
 			context.AddSource("InjekkoGraphMetadata.g.cs", SourceText.From(sourceBuilder.ToString(), Encoding.UTF8));

@@ -1,0 +1,10 @@
+{
+  "name": "com.extrys.injekko",
+  "version": "0.1.0",
+  "displayName": "Injekko",
+  "description": "Unity-first compile-time DI with generated resolvers and Fucktories.",
+  "unity": "6000.0",
+  "author": {
+    "name": "Extrys"
+  }
+}

@@ -39,6 +39,9 @@ namespace Injekko.Codegen
 			ImmutableArray<IMethodSymbol> candidateMethods,
 			ImmutableArray<FucktoryTargetModel> candidateFucktories)
 		{
+			if (candidateMethods.IsDefaultOrEmpty && candidateFucktories.IsDefaultOrEmpty)
+				return;
+
 			var injekAttributeSymbol = compilation.GetTypeByMetadataName("Injekko.InjekAttribute");
 			if (injekAttributeSymbol == null)
 			{

@@ -32,6 +32,9 @@ namespace Injekko.Codegen
 
 		static void Execute(SourceProductionContext context, Compilation compilation, ImmutableArray<IMethodSymbol> candidateMethods, ImmutableArray<FucktoryTargetModel> candidateFucktories)
 		{
+			if (candidateFucktories.IsDefaultOrEmpty)
+				return;
+
 			var injekScopeSymbol = compilation.GetTypeByMetadataName("Injekko.IInjekScope");
 			if (injekScopeSymbol == null)
 			{

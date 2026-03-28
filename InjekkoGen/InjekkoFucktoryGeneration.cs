@@ -184,7 +184,9 @@ namespace Injekko.Codegen
 
 		internal static bool IsComponentType(Compilation compilation, INamedTypeSymbol targetType)
 		{
-			var componentType = compilation.GetTypeByMetadataName("Component");
+			var componentType =
+				compilation.GetTypeByMetadataName("UnityEngine.Component")
+				?? compilation.GetTypeByMetadataName("Component");
 			if (componentType == null)
 				return false;
 
