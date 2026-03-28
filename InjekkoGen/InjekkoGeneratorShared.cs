@@ -1,6 +1,5 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.CodeAnalysis.Text;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -8,10 +7,9 @@ using System.Text;
 
 namespace Injekko.Codegen
 {
-	[Generator]
-	public sealed class InjekkoSourceGenerator : IIncrementalGenerator
+	internal static class InjekkoGeneratorShared
 	{
-		static readonly DiagnosticDescriptor MissingAttributeRule = new(
+		internal static readonly DiagnosticDescriptor MissingAttributeRule = new(
 			id: "INJEK001",
 			title: "Missing Injek attribute definition",
 			messageFormat: "Could not find Injekko.InjekAttribute in the compilation",
@@ -19,7 +17,7 @@ namespace Injekko.Codegen
 			defaultSeverity: DiagnosticSeverity.Error,
 			isEnabledByDefault: true);
 
-		static readonly DiagnosticDescriptor MultipleInjekMethodsRule = new(
+		internal static readonly DiagnosticDescriptor MultipleInjekMethodsRule = new(
 			id: "INJEK002",
 			title: "Only one [Injek] method is supported per type",
 			messageFormat: "Type '{0}' declares multiple [Injek] methods, Keep a single pseudo-constructor method per type",
@@ -27,7 +25,7 @@ namespace Injekko.Codegen
 			defaultSeverity: DiagnosticSeverity.Error,
 			isEnabledByDefault: true);
 
-		static readonly DiagnosticDescriptor InvalidInjekMethodRule = new(
+		internal static readonly DiagnosticDescriptor InvalidInjekMethodRule = new(
 			id: "INJEK003",
 			title: "Invalid [Injek] method",
 			messageFormat: "Method '{0}' is not a supported [Injek] method: {1}",
@@ -35,7 +33,7 @@ namespace Injekko.Codegen
 			defaultSeverity: DiagnosticSeverity.Error,
 			isEnabledByDefault: true);
 
-		static readonly DiagnosticDescriptor MissingScopeRule = new(
+		internal static readonly DiagnosticDescriptor MissingScopeRule = new(
 			id: "INJEK004",
 			title: "Missing IInjekScope definition",
 			messageFormat: "Could not find Injekko.IInjekScope in the compilation",
@@ -43,7 +41,7 @@ namespace Injekko.Codegen
 			defaultSeverity: DiagnosticSeverity.Error,
 			isEnabledByDefault: true);
 
-		static readonly DiagnosticDescriptor InvalidFucktoryRule = new(
+		internal static readonly DiagnosticDescriptor InvalidFucktoryRule = new(
 			id: "INJEK005",
 			title: "Invalid [CreateFucktory] target",
 			messageFormat: "Type '{0}' cannot generate a Fucktory: {1}",
@@ -51,7 +49,7 @@ namespace Injekko.Codegen
 			defaultSeverity: DiagnosticSeverity.Error,
 			isEnabledByDefault: true);
 
-		static readonly DiagnosticDescriptor InvalidFucktoryArgumentsRule = new(
+		internal static readonly DiagnosticDescriptor InvalidFucktoryArgumentsRule = new(
 			id: "INJEK006",
 			title: "Invalid [CreateFucktory] runtime arguments",
 			messageFormat: "Type '{0}' declares [CreateFucktory] runtime arguments that do not match the trailing [Injek] parameters",
@@ -59,32 +57,7 @@ namespace Injekko.Codegen
 			defaultSeverity: DiagnosticSeverity.Error,
 			isEnabledByDefault: true);
 
-		public void Initialize(IncrementalGeneratorInitializationContext context)
-		{
-			var injekMethods = context.SyntaxProvider
-				.CreateSyntaxProvider(
-					static (node, _) => IsCandidateMethod(node),
-					static (generatorContext, _) => GetAnnotatedMethod(generatorContext))
-				.Where(static methodSymbol => methodSymbol != null)
-				.Select(static (methodSymbol, _) => methodSymbol!);
-
-			var fucktoryTargets = context.SyntaxProvider
-				.CreateSyntaxProvider(
-					static (node, _) => IsCandidateFucktoryTarget(node),
-					static (generatorContext, _) => GetFucktoryTarget(generatorContext))
-				.Where(static target => target != null)
-				.Select(static (target, _) => target!);
-
-			var compilationAndInjekMethods = context.CompilationProvider.Combine(injekMethods.Collect());
-			var fullInput = compilationAndInjekMethods.Combine(fucktoryTargets.Collect());
-
-			context.RegisterSourceOutput(fullInput, static (productionContext, source) =>
-			{
-				Execute(productionContext, source.Left.Left, source.Left.Right, source.Right);
-			});
-		}
-
-		static bool IsCandidateMethod(SyntaxNode node)
+		internal static bool IsCandidateMethod(SyntaxNode node)
 		{
 			if (node is not MethodDeclarationSyntax methodDeclaration)
 				return false;
@@ -101,7 +74,7 @@ namespace Injekko.Codegen
 			return false;
 		}
 
-		static bool IsCandidateFucktoryTarget(SyntaxNode node)
+		internal static bool IsCandidateFucktoryTarget(SyntaxNode node)
 		{
 			if (node is not ClassDeclarationSyntax classDeclaration)
 				return false;
@@ -118,7 +91,7 @@ namespace Injekko.Codegen
 			return false;
 		}
 
-		static IMethodSymbol? GetAnnotatedMethod(GeneratorSyntaxContext context)
+		internal static IMethodSymbol GetAnnotatedMethod(GeneratorSyntaxContext context)
 		{
 			if (context.Node is not MethodDeclarationSyntax methodNode)
 				return null;
@@ -135,7 +108,7 @@ namespace Injekko.Codegen
 			return null;
 		}
 
-		static FucktoryTargetModel? GetFucktoryTarget(GeneratorSyntaxContext context)
+		internal static FucktoryTargetModel GetFucktoryTarget(GeneratorSyntaxContext context)
 		{
 			if (context.Node is not ClassDeclarationSyntax classNode)
 				return null;
@@ -154,7 +127,7 @@ namespace Injekko.Codegen
 			return null;
 		}
 
-		static ImmutableArray<ITypeSymbol> ExtractRuntimeArgumentTypes(AttributeData attribute)
+		internal static ImmutableArray<ITypeSymbol> ExtractRuntimeArgumentTypes(AttributeData attribute)
 		{
 			if (attribute.ConstructorArguments.IsDefaultOrEmpty)
 				return ImmutableArray<ITypeSymbol>.Empty;
@@ -180,56 +153,7 @@ namespace Injekko.Codegen
 			return builder.ToImmutable();
 		}
 
-		static void Execute(
-			SourceProductionContext context,
-			Compilation compilation,
-			ImmutableArray<IMethodSymbol> candidateMethods,
-			ImmutableArray<FucktoryTargetModel> candidateFucktories)
-		{
-			var injekAttributeSymbol = compilation.GetTypeByMetadataName("Injekko.InjekAttribute");
-			if (injekAttributeSymbol == null)
-			{
-				context.ReportDiagnostic(Diagnostic.Create(MissingAttributeRule, Location.None));
-				return;
-			}
-
-			var injekScopeSymbol = compilation.GetTypeByMetadataName("Injekko.IInjekScope");
-			if (injekScopeSymbol == null)
-			{
-				context.ReportDiagnostic(Diagnostic.Create(MissingScopeRule, Location.None));
-				return;
-			}
-
-			var methods = DistinctMethods(candidateMethods);
-			var fucktories = DistinctFucktories(candidateFucktories);
-
-			ReportDuplicateInjekMethods(context, methods);
-
-			var sourceBuilder = new StringBuilder();
-			foreach (var methodSymbol in methods)
-			{
-				if (HasMultipleInjekMethods(methods, methodSymbol.ContainingType))
-					continue;
-
-				if (!TryValidateInjekMethod(context, methodSymbol))
-					continue;
-
-				AppendResolver(sourceBuilder, compilation, injekAttributeSymbol, methodSymbol, fucktories);
-			}
-
-			foreach (var fucktory in fucktories)
-			{
-				if (!TryValidateFucktory(context, compilation, methods, fucktory, out var plan))
-					continue;
-
-				AppendFucktory(sourceBuilder, plan);
-			}
-
-			if (sourceBuilder.Length > 0)
-				context.AddSource("InjekkoGenerated.g.cs", SourceText.From(sourceBuilder.ToString(), Encoding.UTF8));
-		}
-
-		static List<IMethodSymbol> DistinctMethods(ImmutableArray<IMethodSymbol> methods)
+		internal static List<IMethodSymbol> DistinctMethods(ImmutableArray<IMethodSymbol> methods)
 		{
 			var result = new List<IMethodSymbol>(methods.Length);
 			foreach (var method in methods)
@@ -246,7 +170,7 @@ namespace Injekko.Codegen
 			return result;
 		}
 
-		static List<FucktoryTargetModel> DistinctFucktories(ImmutableArray<FucktoryTargetModel> fucktories)
+		internal static List<FucktoryTargetModel> DistinctFucktories(ImmutableArray<FucktoryTargetModel> fucktories)
 		{
 			var result = new List<FucktoryTargetModel>(fucktories.Length);
 			foreach (var fucktory in fucktories)
@@ -263,7 +187,7 @@ namespace Injekko.Codegen
 			return result;
 		}
 
-		static void ReportDuplicateInjekMethods(SourceProductionContext context, IEnumerable<IMethodSymbol> methods)
+		internal static void ReportDuplicateInjekMethods(SourceProductionContext context, IEnumerable<IMethodSymbol> methods)
 		{
 			var groupedByType = methods.GroupBy(m => m.ContainingType, SymbolEqualityComparer.Default);
 			foreach (var group in groupedByType)
@@ -281,7 +205,7 @@ namespace Injekko.Codegen
 			}
 		}
 
-		static bool TryValidateInjekMethod(SourceProductionContext context, IMethodSymbol methodSymbol)
+		internal static bool TryValidateInjekMethod(SourceProductionContext context, IMethodSymbol methodSymbol)
 		{
 			if (methodSymbol.MethodKind != MethodKind.Ordinary)
 				return ReportInvalid(context, methodSymbol, "it must be an ordinary instance method");
@@ -310,7 +234,7 @@ namespace Injekko.Codegen
 			}
 		}
 
-		static bool TryValidateFucktory(
+		internal static bool TryValidateFucktory(
 			SourceProductionContext context,
 			Compilation compilation,
 			List<IMethodSymbol> methods,
@@ -373,7 +297,7 @@ namespace Injekko.Codegen
 			}
 		}
 
-		static void AppendResolver(
+		internal static void AppendResolver(
 			StringBuilder sourceBuilder,
 			Compilation compilation,
 			INamedTypeSymbol injekAttributeSymbol,
@@ -381,7 +305,9 @@ namespace Injekko.Codegen
 			List<FucktoryTargetModel> fucktories)
 		{
 			var associatedFucktory = FindFucktoryForTarget(fucktories, methodSymbol.ContainingType);
-			if (associatedFucktory != null && associatedFucktory.RuntimeArgumentTypes.Length > 0)
+			if (associatedFucktory != null
+				&& associatedFucktory.RuntimeArgumentTypes.Length > 0
+				&& MatchesTrailingRuntimeArguments(methodSymbol, associatedFucktory.RuntimeArgumentTypes))
 			{
 				AppendResolverOverload(sourceBuilder, compilation, injekAttributeSymbol, methodSymbol, fucktories, associatedFucktory.RuntimeArgumentTypes);
 				return;
@@ -479,7 +405,7 @@ namespace Injekko.Codegen
 			return false;
 		}
 
-		static void AppendFucktory(StringBuilder sourceBuilder, FucktoryPlan plan)
+		internal static void AppendFucktory(StringBuilder sourceBuilder, FucktoryPlan plan)
 		{
 			var targetType = plan.TargetType;
 			var namespaceName = targetType.ContainingNamespace.ToDisplayString();
@@ -587,7 +513,7 @@ namespace Injekko.Codegen
 			return $"global::Injekko.IFucktory<{targetTypeName}, {runtimeArgumentTypes[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}, {runtimeArgumentTypes[1].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}>";
 		}
 
-		static bool HasInjectableMethod(ITypeSymbol typeSymbol, INamedTypeSymbol injekAttributeSymbol)
+		internal static bool HasInjectableMethod(ITypeSymbol typeSymbol, INamedTypeSymbol injekAttributeSymbol)
 		{
 			var currentType = typeSymbol;
 			while (currentType != null)
@@ -607,34 +533,16 @@ namespace Injekko.Codegen
 			return false;
 		}
 
-		static IMethodSymbol FindInjectMethod(IEnumerable<IMethodSymbol> methods, INamedTypeSymbol targetType)
+		internal static IMethodSymbol FindInjectMethod(IEnumerable<IMethodSymbol> methods, INamedTypeSymbol targetType)
 			=> methods.FirstOrDefault(method => SymbolEqualityComparer.Default.Equals(method.ContainingType, targetType));
 
-		static bool HasMultipleInjekMethods(IEnumerable<IMethodSymbol> methods, INamedTypeSymbol targetType)
+		internal static bool HasMultipleInjekMethods(IEnumerable<IMethodSymbol> methods, INamedTypeSymbol targetType)
 			=> methods.Count(method => SymbolEqualityComparer.Default.Equals(method.ContainingType, targetType)) > 1;
 
-		static FucktoryTargetModel FindFucktoryForTarget(IEnumerable<FucktoryTargetModel> fucktories, INamedTypeSymbol targetType)
+		internal static FucktoryTargetModel FindFucktoryForTarget(IEnumerable<FucktoryTargetModel> fucktories, INamedTypeSymbol targetType)
 			=> fucktories.FirstOrDefault(fucktory => SymbolEqualityComparer.Default.Equals(fucktory.TargetType, targetType));
 
-		static FucktoryTargetModel FindFucktoryForParameter(IEnumerable<FucktoryTargetModel> fucktories, ITypeSymbol parameterType)
-		{
-			var parameterSimpleName = parameterType.Name;
-			var parameterDisplayName = TrimGlobal(parameterType.ToDisplayString());
-			var parameterFullName = TrimGlobal(parameterType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
-
-			foreach (var fucktory in fucktories)
-			{
-				if (fucktory.FactoryName == parameterSimpleName)
-					return fucktory;
-
-				if (fucktory.FullyQualifiedFactoryName == parameterDisplayName || fucktory.FullyQualifiedFactoryName == parameterFullName)
-					return fucktory;
-			}
-
-			return null;
-		}
-
-		static bool MatchesTrailingRuntimeArguments(IMethodSymbol injectMethod, ImmutableArray<ITypeSymbol> runtimeArgumentTypes)
+		internal static bool MatchesTrailingRuntimeArguments(IMethodSymbol injectMethod, ImmutableArray<ITypeSymbol> runtimeArgumentTypes)
 		{
 			if (injectMethod.Parameters.Length < runtimeArgumentTypes.Length)
 				return false;
@@ -651,7 +559,7 @@ namespace Injekko.Codegen
 			return true;
 		}
 
-		static bool IsComponentType(Compilation compilation, INamedTypeSymbol targetType)
+		internal static bool IsComponentType(Compilation compilation, INamedTypeSymbol targetType)
 		{
 			var componentType = compilation.GetTypeByMetadataName("Component");
 			if (componentType == null)
@@ -669,7 +577,7 @@ namespace Injekko.Codegen
 			return false;
 		}
 
-		static bool TryGetGameObjectType(INamedTypeSymbol targetType, out ITypeSymbol gameObjectType)
+		internal static bool TryGetGameObjectType(INamedTypeSymbol targetType, out ITypeSymbol gameObjectType)
 		{
 			var currentType = targetType;
 			while (currentType != null)
@@ -694,6 +602,24 @@ namespace Injekko.Codegen
 
 			gameObjectType = null;
 			return false;
+		}
+
+		static FucktoryTargetModel FindFucktoryForParameter(IEnumerable<FucktoryTargetModel> fucktories, ITypeSymbol parameterType)
+		{
+			var parameterSimpleName = parameterType.Name;
+			var parameterDisplayName = TrimGlobal(parameterType.ToDisplayString());
+			var parameterFullName = TrimGlobal(parameterType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+
+			foreach (var fucktory in fucktories)
+			{
+				if (fucktory.FactoryName == parameterSimpleName)
+					return fucktory;
+
+				if (fucktory.FullyQualifiedFactoryName == parameterDisplayName || fucktory.FullyQualifiedFactoryName == parameterFullName)
+					return fucktory;
+			}
+
+			return null;
 		}
 
 		static bool HasAccessibleParameterlessConstructor(INamedTypeSymbol targetType)
@@ -749,42 +675,45 @@ namespace Injekko.Codegen
 			|| attributeName == "Injekko.CreateFucktory"
 			|| attributeName == "CreateFucktoryAttribute"
 			|| attributeName == "Injekko.CreateFucktoryAttribute";
+	}
 
-		sealed class FucktoryTargetModel
+	internal sealed class FucktoryTargetModel
+	{
+		public FucktoryTargetModel(INamedTypeSymbol targetType, ImmutableArray<ITypeSymbol> runtimeArgumentTypes)
 		{
-			public FucktoryTargetModel(INamedTypeSymbol targetType, ImmutableArray<ITypeSymbol> runtimeArgumentTypes)
-			{
-				TargetType = targetType;
-				RuntimeArgumentTypes = runtimeArgumentTypes;
-			}
-
-			public INamedTypeSymbol TargetType { get; }
-			public ImmutableArray<ITypeSymbol> RuntimeArgumentTypes { get; }
-			public string FactoryName => GetFucktoryName(TargetType);
-			public string FullyQualifiedFactoryName => GetFullyQualifiedFucktoryName(TargetType);
+			TargetType = targetType;
+			RuntimeArgumentTypes = runtimeArgumentTypes;
 		}
 
-		sealed class FucktoryPlan
-		{
-			public FucktoryPlan(
-				INamedTypeSymbol targetType,
-				ImmutableArray<ITypeSymbol> runtimeArgumentTypes,
-				IMethodSymbol injekMethod,
-				bool isComponentTarget,
-				ITypeSymbol gameObjectType)
-			{
-				TargetType = targetType;
-				RuntimeArgumentTypes = runtimeArgumentTypes;
-				InjekMethod = injekMethod;
-				IsComponentTarget = isComponentTarget;
-				GameObjectType = gameObjectType;
-			}
+		public INamedTypeSymbol TargetType { get; }
+		public ImmutableArray<ITypeSymbol> RuntimeArgumentTypes { get; }
+		public string FactoryName => TargetType.Name + "_Fucktory";
+		public string FullyQualifiedFactoryName
+			=> TargetType.ContainingNamespace.IsGlobalNamespace
+				? "global::" + FactoryName
+				: "global::" + TargetType.ContainingNamespace.ToDisplayString() + "." + FactoryName;
+	}
 
-			public INamedTypeSymbol TargetType { get; }
-			public ImmutableArray<ITypeSymbol> RuntimeArgumentTypes { get; }
-			public IMethodSymbol InjekMethod { get; }
-			public bool IsComponentTarget { get; }
-			public ITypeSymbol GameObjectType { get; }
+	internal sealed class FucktoryPlan
+	{
+		public FucktoryPlan(
+			INamedTypeSymbol targetType,
+			ImmutableArray<ITypeSymbol> runtimeArgumentTypes,
+			IMethodSymbol injekMethod,
+			bool isComponentTarget,
+			ITypeSymbol gameObjectType)
+		{
+			TargetType = targetType;
+			RuntimeArgumentTypes = runtimeArgumentTypes;
+			InjekMethod = injekMethod;
+			IsComponentTarget = isComponentTarget;
+			GameObjectType = gameObjectType;
 		}
+
+		public INamedTypeSymbol TargetType { get; }
+		public ImmutableArray<ITypeSymbol> RuntimeArgumentTypes { get; }
+		public IMethodSymbol InjekMethod { get; }
+		public bool IsComponentTarget { get; }
+		public ITypeSymbol GameObjectType { get; }
 	}
 }
