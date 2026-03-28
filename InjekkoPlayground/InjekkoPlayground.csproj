@@ -8,8 +8,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="EngineMockup\**\*.cs" />
+    <Compile Remove="Containers\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\InjekkoGen\InjekkoGen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
 	  <ProjectReference Include="..\InjekkoBinding\InjekkoBinding.csproj" />
+	  <ProjectReference Include="..\InjekkoUnityRuntime\InjekkoUnityRuntime.csproj" />
   </ItemGroup>
 
 </Project>

@@ -9,3 +9,5 @@ INJEK001 | Injekko | Error | InjekkoSourceGenerator
 INJEK002 | Injekko | Error | InjekkoSourceGenerator
 INJEK003 | Injekko | Error | InjekkoSourceGenerator
 INJEK004 | Injekko | Error | InjekkoSourceGenerator
+INJEK005 | Injekko | Error | InjekkoFucktoryGenerator
+INJEK006 | Injekko | Error | InjekkoFucktoryGenerator

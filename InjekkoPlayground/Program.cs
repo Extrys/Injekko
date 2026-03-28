@@ -1,8 +1,12 @@
-﻿public class Program
+using Injekko.Unity;
+
+public class Program
 {
-	static Project project = new();
+	static readonly Project project = new();
+
 	static void Main(string[] args)
 	{
+		InjekkoRuntimeBootstrap.Configure(new PlaygroundProjectAsset());
 		project.AddScene(CreateDefaultSceneSetup());
 		project.LoadScene(0);
 		project.UpdateScene();
@@ -12,15 +16,12 @@
 	public static Scene CreateDefaultSceneSetup()
 	{
 		Scene scene = new();
-		GameObject sceneContextObject = scene.AddNewGameObject("SceneContext");
-		SceneContext sceneContext = sceneContextObject.AddComponent<SceneContext>();
-		sceneContext.Initialize();
 
 		GameObject playerObject = scene.AddNewGameObject("Player");
-		GameObjectContext playerContext = playerObject.AddComponent<GameObjectContext>();
-		playerContext.Initialize();
+		InjekScopeAnchor playerScopeAnchor = playerObject.AddComponent<InjekScopeAnchor>();
+		playerScopeAnchor.Configure();
 
-		Player_Fucktory playerFucktory = new(playerObject, playerContext.Scope);
+		Player_Fucktory playerFucktory = new(playerObject);
 		playerFucktory.Create();
 
 		scene.AddNewGameObject("Inventory", playerObject);
@@ -29,7 +30,3 @@
 		return scene;
 	}
 }
-
-
-
-
