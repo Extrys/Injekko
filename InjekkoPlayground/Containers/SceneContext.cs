@@ -4,7 +4,7 @@
 	{
 		if(container.Parent == null)
 		{
-			ProjectContext context = ProjectContext.Create();
+			ProjectContext context = ProjectContext.Create(gameObject.Scene);
 			container.Parent = context.container;
 			context.Initialize();
 		}

@@ -1,16 +1,25 @@
-﻿using Injekko;
+using Injekko;
 using Pepe;
 
+[CreateFucktory]
 public class Player : Component
 {
 	DependencyA depA;
 	DependencyC depC;
+	Bullet_Fucktory bulletFactory;
+	SpecialBullet_Fucktory specialBulletFactory;
 
 	[Injek]
-	public void Construc(DependencyA depA, DependencyC depC)
+	public void Construc(
+		DependencyA depA,
+		DependencyC depC,
+		Bullet_Fucktory bulletFactory,
+		SpecialBullet_Fucktory specialBulletFactory)
 	{
 		this.depA = depA;
 		this.depC = depC;
+		this.bulletFactory = bulletFactory;
+		this.specialBulletFactory = specialBulletFactory;
 		Console.WriteLine("Player constructed");
 		Console.WriteLine("DependencyA value: " + depA.value);
 		Console.WriteLine("DependencyB value: " + depC.depB.value);
@@ -20,14 +29,11 @@ public class Player : Component
 	public override void Awake()
 	{
 		Console.WriteLine("Player awake");
-		Context scopeSource = GetComponent<GameObjectContext>();
-		scopeSource ??=  GetComponent<SceneContext>(); //should look in the scene but its just an example
-		if (scopeSource == null)
-			throw new InjekException("No explicit scope source found for Player. Add a Context component before calling Injek.");
-		this.Injek(scopeSource.Scope); 
-	} 
+	}
+
+	void Shoot()
+	{
+		bulletFactory.Create();
+		specialBulletFactory.Create(1, false);
+	}
 }
-
-
-
-

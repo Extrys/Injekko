@@ -12,12 +12,18 @@
 	public static Scene CreateDefaultSceneSetup()
 	{
 		Scene scene = new();
-		GameObject sceneContext = scene.AddNewGameObject("SceneContext");
-		sceneContext.AddComponent<SceneContext>();
-		GameObject player = scene.AddNewGameObject("Player");
-		player.AddComponent<GameObjectContext>();
-		player.AddComponent<Player>();
-		scene.AddNewGameObject("Inventory", player);
+		GameObject sceneContextObject = scene.AddNewGameObject("SceneContext");
+		SceneContext sceneContext = sceneContextObject.AddComponent<SceneContext>();
+		sceneContext.Initialize();
+
+		GameObject playerObject = scene.AddNewGameObject("Player");
+		GameObjectContext playerContext = playerObject.AddComponent<GameObjectContext>();
+		playerContext.Initialize();
+
+		Player_Fucktory playerFucktory = new(playerObject, playerContext.Scope);
+		playerFucktory.Create();
+
+		scene.AddNewGameObject("Inventory", playerObject);
 		scene.LogScene();
 		Console.WriteLine("Scene created");
 		return scene;
