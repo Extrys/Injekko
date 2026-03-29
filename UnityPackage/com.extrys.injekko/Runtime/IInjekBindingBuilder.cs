@@ -1,3 +1,5 @@
+using UnityEngine;
+
 namespace Injekko
 {
 	public interface IInjekBindingBuilder
@@ -7,5 +9,6 @@ namespace Injekko
 		void BindTransient<TService, TImplementation>() where TImplementation : TService, new();
 		void BindScoped<T>() where T : new();
 		void BindScoped<TService, TImplementation>() where TImplementation : TService, new();
+		void BindPrefab<T>(T prefab) where T : Component;
 	}
 }

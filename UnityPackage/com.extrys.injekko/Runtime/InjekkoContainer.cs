@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using UnityEngine;
 
 namespace Injekko
 {
@@ -9,6 +10,7 @@ namespace Injekko
 		IInjekScope parent;
 		InjekActivationTracker activationTracker = new();
 		readonly Dictionary<Type, IInjekBinding> bindings = new();
+		readonly Dictionary<Type, Component> prefabs = new();
 
 		public IInjekScope Parent
 		{
@@ -26,6 +28,7 @@ namespace Injekko
 		public void BindTransient<TService, TImplementation>() where TImplementation : TService, new() => bindings[typeof(TService)] = new TransientBinding<TService>(() => new TImplementation());
 		public void BindScoped<T>() where T : new() => BindScoped<T, T>();
 		public void BindScoped<TService, TImplementation>() where TImplementation : TService, new() => bindings[typeof(TService)] = new ScopedBinding<TService>(() => new TImplementation());
+		public void BindPrefab<T>(T prefab) where T : Component => prefabs[typeof(T)] = prefab;
 
 		public bool TryResolve<T>(out T instance)
 		{
@@ -49,6 +52,28 @@ namespace Injekko
 			throw new InjekException($"No binding found for {typeof(T).FullName}");
 		}
 
+		public bool TryResolvePrefab<T>(out T prefab) where T : Component
+		{
+			if (prefabs.TryGetValue(typeof(T), out var instance))
+			{
+				prefab = (T)instance;
+				return true;
+			}
+
+			if (Parent != null)
+				return Parent.TryResolvePrefab(out prefab);
+
+			prefab = default;
+			return false;
+		}
+
+		public T ResolvePrefab<T>() where T : Component
+		{
+			if (TryResolvePrefab<T>(out var prefab))
+				return prefab;
+			throw new InjekException($"No prefab binding found for {typeof(T).FullName}");
+		}
+
 		public bool TryBeginActivation(object instance) => activationTracker.TryBegin(instance);
 		public void CompleteActivation(object instance) => activationTracker.Complete(instance);
 		public void CancelActivation(object instance) => activationTracker.Cancel(instance);
@@ -56,9 +81,11 @@ namespace Injekko
 
 		public IReadOnlyList<InjekBindingInfo> GetBindingInfos()
 		{
-			List<InjekBindingInfo> infos = new(bindings.Count);
+			List<InjekBindingInfo> infos = new(bindings.Count + prefabs.Count);
 			foreach (var entry in bindings)
 				infos.Add(new InjekBindingInfo(entry.Key.FullName ?? entry.Key.Name, entry.Value.Lifetime));
+			foreach (var entry in prefabs)
+				infos.Add(new InjekBindingInfo($"{entry.Key.FullName ?? entry.Key.Name} (Prefab)", InjekLifetime.Instance));
 			return infos;
 		}
 

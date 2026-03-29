@@ -24,13 +24,15 @@ namespace Injekko.Codegen
 			ImmutableArray<ITypeSymbol> runtimeArgumentTypes,
 			IMethodSymbol injekMethod,
 			bool isComponentTarget,
-			ITypeSymbol gameObjectType)
+			ITypeSymbol gameObjectType,
+			ITypeSymbol componentType)
 		{
 			TargetType = targetType;
 			RuntimeArgumentTypes = runtimeArgumentTypes;
 			InjekMethod = injekMethod;
 			IsComponentTarget = isComponentTarget;
 			GameObjectType = gameObjectType;
+			ComponentType = componentType;
 		}
 
 		public INamedTypeSymbol TargetType { get; }
@@ -38,5 +40,6 @@ namespace Injekko.Codegen
 		public IMethodSymbol InjekMethod { get; }
 		public bool IsComponentTarget { get; }
 		public ITypeSymbol GameObjectType { get; }
+		public ITypeSymbol ComponentType { get; }
 	}
 }

@@ -22,6 +22,7 @@ namespace Injekko.Codegen
 				return ReportInvalid(context, fucktory, "target type declares multiple [Injek] methods");
 
 			var isComponentTarget = IsComponentType(compilation, fucktory.TargetType);
+			var componentType = compilation.GetTypeByMetadataName("UnityEngine.Component") ?? compilation.GetTypeByMetadataName("Component");
 			var gameObjectType = default(ITypeSymbol);
 
 			if (isComponentTarget)
@@ -44,7 +45,7 @@ namespace Injekko.Codegen
 				}
 			}
 
-			plan = new FucktoryPlan(fucktory.TargetType, fucktory.RuntimeArgumentTypes, injectMethod, isComponentTarget, gameObjectType);
+			plan = new FucktoryPlan(fucktory.TargetType, fucktory.RuntimeArgumentTypes, injectMethod, isComponentTarget, gameObjectType, componentType);
 			return true;
 		}
 
@@ -72,7 +73,13 @@ namespace Injekko.Codegen
 			{
 				var gameObjectTypeName = plan.GameObjectType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 				sourceBuilder.AppendLine($"		readonly {gameObjectTypeName} gameObject;");
+				sourceBuilder.AppendLine($"		readonly {targetTypeName} prefab;");
 				sourceBuilder.AppendLine("		readonly global::Injekko.IInjekScope scope;");
+				sourceBuilder.AppendLine();
+				sourceBuilder.AppendLine($"		public {fucktoryName}(global::Injekko.IInjekScope scope)");
+				sourceBuilder.AppendLine("		{");
+				sourceBuilder.AppendLine("			this.scope = scope;");
+				sourceBuilder.AppendLine("		}");
 				sourceBuilder.AppendLine();
 				sourceBuilder.AppendLine($"		public {fucktoryName}({gameObjectTypeName} gameObject)");
 				sourceBuilder.AppendLine($"			: this(gameObject, global::Injekko.Unity.InjekScopeRegistry.GetScope(gameObject))");
@@ -82,6 +89,12 @@ namespace Injekko.Codegen
 				sourceBuilder.AppendLine($"		public {fucktoryName}({gameObjectTypeName} gameObject, global::Injekko.IInjekScope scope)");
 				sourceBuilder.AppendLine("		{");
 				sourceBuilder.AppendLine("			this.gameObject = gameObject;");
+				sourceBuilder.AppendLine("			this.scope = scope;");
+				sourceBuilder.AppendLine("		}");
+				sourceBuilder.AppendLine();
+				sourceBuilder.AppendLine($"		public {fucktoryName}({targetTypeName} prefab, global::Injekko.IInjekScope scope)");
+				sourceBuilder.AppendLine("		{");
+				sourceBuilder.AppendLine("			this.prefab = prefab;");
 				sourceBuilder.AppendLine("			this.scope = scope;");
 				sourceBuilder.AppendLine("		}");
 			}
@@ -103,38 +116,46 @@ namespace Injekko.Codegen
 			sourceBuilder.AppendLine();
 			sourceBuilder.AppendLine($"		public {targetTypeName} Create({createSignature})");
 			sourceBuilder.AppendLine("		{");
-			if (plan.IsComponentTarget)
-				sourceBuilder.AppendLine("			var deferredLifecycle = global::Injekko.Unity.InjekDeferredLifecycle.Begin(gameObject);");
 			sourceBuilder.AppendLine("			try");
 			sourceBuilder.AppendLine("			{");
 			sourceBuilder.AppendLine("				OnBeforeCreate();");
 
 			if (plan.IsComponentTarget)
-				sourceBuilder.AppendLine($"				var instance = gameObject.AddComponent<{targetTypeName}>();");
-			else
-				sourceBuilder.AppendLine($"				var instance = new {targetTypeName}();");
-
-			sourceBuilder.AppendLine("				OnAfterCreate(instance);");
-
-			if (plan.InjekMethod != null)
 			{
-				var resolverTypeName = InjekkoGeneratorNaming.GetFullyQualifiedResolverName(targetType);
-				sourceBuilder.AppendLine($"				{resolverTypeName}.Activate(instance, scope{createInvocation});");
+				AppendComponentCreateBody(sourceBuilder, plan, targetTypeName, createInvocation);
+			}
+			else
+			{
+				sourceBuilder.AppendLine($"				var instance = new {targetTypeName}();");
+				sourceBuilder.AppendLine("				OnAfterCreate(instance);");
+				if (plan.InjekMethod != null)
+				{
+					var resolverTypeName = InjekkoGeneratorNaming.GetFullyQualifiedResolverName(targetType);
+					sourceBuilder.AppendLine($"				{resolverTypeName}.Activate(instance, scope{createInvocation});");
+				}
+				sourceBuilder.AppendLine("				OnAfterActivate(instance);");
+				sourceBuilder.AppendLine("				return instance;");
 			}
 
-			sourceBuilder.AppendLine("				OnAfterActivate(instance);");
-			if (plan.IsComponentTarget)
-				sourceBuilder.AppendLine("				deferredLifecycle.Complete(instance);");
-			sourceBuilder.AppendLine("				return instance;");
 			sourceBuilder.AppendLine("			}");
 			sourceBuilder.AppendLine("			catch");
 			sourceBuilder.AppendLine("			{");
-			if (plan.IsComponentTarget)
-				sourceBuilder.AppendLine("				deferredLifecycle.Dispose();");
 			sourceBuilder.AppendLine("				throw;");
 			sourceBuilder.AppendLine("			}");
 			sourceBuilder.AppendLine("		}");
 			sourceBuilder.AppendLine();
+
+			if (plan.IsComponentTarget)
+			{
+				sourceBuilder.AppendLine($"		public static void BindPrefab(global::Injekko.IInjekBindingBuilder builder, {targetTypeName} prefab)");
+				sourceBuilder.AppendLine("		{");
+				sourceBuilder.AppendLine("			if(builder == null)");
+				sourceBuilder.AppendLine("				throw new global::System.ArgumentNullException(nameof(builder));");
+				sourceBuilder.AppendLine("			builder.BindPrefab(prefab);");
+				sourceBuilder.AppendLine("		}");
+				sourceBuilder.AppendLine();
+			}
+
 			sourceBuilder.AppendLine("		partial void OnBeforeCreate();");
 			sourceBuilder.AppendLine($"		partial void OnAfterCreate({targetTypeName} instance);");
 			sourceBuilder.AppendLine($"		partial void OnAfterActivate({targetTypeName} instance);");
@@ -142,6 +163,44 @@ namespace Injekko.Codegen
 
 			if (!globalNs)
 				sourceBuilder.AppendLine("}");
+		}
+
+		static void AppendComponentCreateBody(StringBuilder sourceBuilder, FucktoryPlan plan, string targetTypeName, string createInvocation)
+		{
+			sourceBuilder.AppendLine($"				var prefabSource = prefab ?? (scope != null && scope.TryResolvePrefab<{targetTypeName}>(out var boundPrefab) ? boundPrefab : null);");
+			sourceBuilder.AppendLine("				if (prefabSource != null)");
+			sourceBuilder.AppendLine("				{");
+			sourceBuilder.AppendLine("					var instance = global::Injekko.Unity.InjekHierarchyActivator.InstantiatePrefab(prefabSource, scope, global::Injekko.Unity.InjekkoSceneActivationBootstrap.ActivateHierarchy);");
+			if (plan.InjekMethod != null)
+			{
+				var resolverTypeName = InjekkoGeneratorNaming.GetFullyQualifiedResolverName(plan.TargetType);
+				sourceBuilder.AppendLine($"					{resolverTypeName}.Activate(instance, scope{createInvocation});");
+			}
+			sourceBuilder.AppendLine("					OnAfterCreate(instance);");
+			sourceBuilder.AppendLine("					OnAfterActivate(instance);");
+			sourceBuilder.AppendLine("					return instance;");
+			sourceBuilder.AppendLine("				}");
+			sourceBuilder.AppendLine("				if (gameObject == null)");
+			sourceBuilder.AppendLine($"					throw new global::Injekko.InjekException(\"No prefab binding found for {targetTypeName} and no host GameObject was provided for AddComponent creation.\");");
+			sourceBuilder.AppendLine("				var deferredLifecycle = global::Injekko.Unity.InjekDeferredLifecycle.Begin(gameObject);");
+			sourceBuilder.AppendLine("				try");
+			sourceBuilder.AppendLine("				{");
+			sourceBuilder.AppendLine($"					var instance = gameObject.AddComponent<{targetTypeName}>();");
+			sourceBuilder.AppendLine("					OnAfterCreate(instance);");
+			if (plan.InjekMethod != null)
+			{
+				var resolverTypeName = InjekkoGeneratorNaming.GetFullyQualifiedResolverName(plan.TargetType);
+				sourceBuilder.AppendLine($"					{resolverTypeName}.Activate(instance, scope{createInvocation});");
+			}
+			sourceBuilder.AppendLine("					OnAfterActivate(instance);");
+			sourceBuilder.AppendLine("					deferredLifecycle.Complete(instance);");
+			sourceBuilder.AppendLine("					return instance;");
+			sourceBuilder.AppendLine("				}");
+			sourceBuilder.AppendLine("				catch");
+			sourceBuilder.AppendLine("				{");
+			sourceBuilder.AppendLine("					deferredLifecycle.Dispose();");
+			sourceBuilder.AppendLine("					throw;");
+			sourceBuilder.AppendLine("				}");
 		}
 
 		internal static FucktoryTargetModel FindFucktoryForTarget(IEnumerable<FucktoryTargetModel> fucktories, INamedTypeSymbol targetType)

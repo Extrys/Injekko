@@ -61,12 +61,31 @@ namespace Injekko.Unity
 		public static InjekScopeNode EnsureGameObjectScope(GameObject gameObject, IEnumerable<InjekInstallerAsset> installers = null)
 			=> EnsureSubscope(gameObject, installers);
 
+		public static InjekScopeNode EnsureGameObjectScope(GameObject gameObject, IInjekScope parentScope, IEnumerable<InjekInstallerAsset> installers)
+		{
+			if (gameObject == null)
+				throw new ArgumentNullException(nameof(gameObject));
+			if (parentScope == null)
+				throw new ArgumentNullException(nameof(parentScope));
+			if (parentScope is not InjekScopeNode parentNode)
+				throw new InjekException("GameObjectScope registration requires an InjekScopeNode parent.");
+
+			if (anchoredScopes.TryGetValue(gameObject, out var existingScope))
+				return existingScope;
+
+			InjekScopeNode scope = new(gameObject.name, InjekScopeKind.GameObject, gameObject, parentNode);
+			if (installers != null)
+				scope.Install(installers);
+			anchoredScopes[gameObject] = scope;
+			return scope;
+		}
+
 		public static InjekScopeNode EnsureSubscope(GameObject gameObject, IEnumerable<InjekInstallerAsset> installers = null)
 		{
 			if (anchoredScopes.TryGetValue(gameObject, out var scope))
 				return scope;
 
-			var parentScope = ResolveParentScope(gameObject);
+			InjekScopeNode parentScope = ResolveParentScope(gameObject);
 			scope = new InjekScopeNode(gameObject.name, InjekScopeKind.GameObject, gameObject, parentScope);
 			if (installers != null)
 				scope.Install(installers);
@@ -89,7 +108,7 @@ namespace Injekko.Unity
 			if (gameObject == null)
 				throw new ArgumentNullException(nameof(gameObject));
 
-			var current = gameObject.transform;
+			Transform current = gameObject.transform;
 			while (current != null)
 			{
 				if (anchoredScopes.TryGetValue(current.gameObject, out var anchoredScope))
@@ -127,7 +146,7 @@ namespace Injekko.Unity
 
 		static InjekScopeNode ResolveParentScope(GameObject gameObject)
 		{
-			var current = gameObject.transform.parent;
+			Transform current = gameObject.transform.parent;
 			while (current != null)
 			{
 				if (anchoredScopes.TryGetValue(current.gameObject, out var scope))

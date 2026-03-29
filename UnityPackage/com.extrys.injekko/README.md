@@ -47,6 +47,22 @@ If a scene needs scene-specific bindings, add a `SceneScope` component somewhere
 - `GameObjectScope` creates explicit subscopes on `GameObject`s when you need them.
 - `GetInjekScope()` on `GameObject` and `Component` resolves through the scope registry instead of repeated `GetComponent` searches.
 - Scene `MonoBehaviour`s with `[Injek]` are auto-activated by generated code after scene load, without runtime reflection.
+- Prefab-backed `Fucktory` creation is now the recommended path for Unity gameplay objects.
+- `AddComponent` creation is still supported, but it is the secondary path and does not carry the same strong lifecycle guarantees.
+
+## Prefab-Backed Fucktories
+
+For a generated component factory, bind the prefab from your installer through the generated helper:
+
+```csharp
+MyEnemy_Fucktory.BindPrefab(builder, myEnemyPrefab);
+```
+
+When that factory creates an instance, Injekko will:
+
+- instantiate the prefab hierarchy
+- register any `GameObjectScope` components in that hierarchy top-down
+- activate all `[Injek]` components in the instantiated tree
 
 ## First Tooling Hooks
 

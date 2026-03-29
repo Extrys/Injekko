@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using UnityEngine;
 
 namespace Injekko.Unity
 {
@@ -39,8 +40,11 @@ namespace Injekko.Unity
 		public void BindTransient<TService, TImplementation>() where TImplementation : TService, new() => container.BindTransient<TService, TImplementation>();
 		public void BindScoped<T>() where T : new() => container.BindScoped<T>();
 		public void BindScoped<TService, TImplementation>() where TImplementation : TService, new() => container.BindScoped<TService, TImplementation>();
+		public void BindPrefab<T>(T prefab) where T : Component => container.BindPrefab(prefab);
 		public bool TryResolve<T>(out T instance) => container.TryResolve(out instance);
 		public T Resolve<T>() => container.Resolve<T>();
+		public bool TryResolvePrefab<T>(out T prefab) where T : Component => container.TryResolvePrefab(out prefab);
+		public T ResolvePrefab<T>() where T : Component => container.ResolvePrefab<T>();
 		public bool TryBeginActivation(object instance) => container.TryBeginActivation(instance);
 		public void CompleteActivation(object instance) => container.CompleteActivation(instance);
 		public void CancelActivation(object instance) => container.CancelActivation(instance);

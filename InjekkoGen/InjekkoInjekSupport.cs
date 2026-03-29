@@ -207,13 +207,8 @@ namespace Injekko.Codegen
 				return true;
 			}
 
-			if (!InjekkoFucktoryGeneration.IsComponentType(compilation, fucktory.TargetType))
-			{
-				sourceBuilder.AppendLine($"				var {parameter.Name} = new {factoryTypeName}(scope);");
-				return true;
-			}
-
-			return false;
+			sourceBuilder.AppendLine($"				var {parameter.Name} = new {factoryTypeName}(scope);");
+			return true;
 		}
 
 		static string BuildRuntimeArgumentSignature(ImmutableArray<ITypeSymbol> runtimeArgumentTypes)

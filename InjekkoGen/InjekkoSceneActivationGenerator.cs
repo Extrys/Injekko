@@ -74,24 +74,47 @@ namespace Injekko.Codegen
 			sourceBuilder.AppendLine("\t\t\tActivateScene(scene);");
 			sourceBuilder.AppendLine("\t\t}");
 			sourceBuilder.AppendLine();
+			sourceBuilder.AppendLine("\t\tinternal static void ActivateHierarchy(global::UnityEngine.GameObject root)");
+			sourceBuilder.AppendLine("\t\t{");
+			sourceBuilder.AppendLine("\t\t\tif (root == null)");
+			sourceBuilder.AppendLine("\t\t\t\tthrow new global::System.ArgumentNullException(nameof(root));");
+			AppendHierarchyActivationLoops(sourceBuilder, context, compilation, methods, fucktories, "\t\t\t", "root.GetComponentsInChildren");
+			sourceBuilder.AppendLine("\t\t}");
+			sourceBuilder.AppendLine();
 			sourceBuilder.AppendLine("\t\tstatic void ActivateScene(global::UnityEngine.SceneManagement.Scene scene)");
 			sourceBuilder.AppendLine("\t\t{");
+			AppendSceneActivationLoops(sourceBuilder, context, compilation, methods, fucktories);
+			sourceBuilder.AppendLine("\t\t}");
+			sourceBuilder.AppendLine("\t}");
+			sourceBuilder.AppendLine("}");
 
+			context.AddSource("InjekkoSceneActivationGenerated.g.cs", SourceText.From(sourceBuilder.ToString(), Encoding.UTF8));
+		}
+
+		static void AppendHierarchyActivationLoops(StringBuilder sourceBuilder, SourceProductionContext context, Compilation compilation, System.Collections.Generic.List<IMethodSymbol> methods, System.Collections.Generic.List<FucktoryTargetModel> fucktories, string indent, string hierarchyFetchExpression)
+		{
 			foreach (var method in methods)
 			{
-				if (!InjekkoInjekSupport.TryValidateInjekMethod(context, method))
+				if (!ShouldGenerateActivationForMethod(context, compilation, method, fucktories))
 					continue;
 
-				if (!InjekkoFucktoryGeneration.IsComponentType(compilation, method.ContainingType))
-					continue;
+				string componentTypeName = method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+				sourceBuilder.AppendLine($"{indent}var {method.ContainingType.Name}_hierarchyInstances = {hierarchyFetchExpression}<{componentTypeName}>(true);");
+				sourceBuilder.AppendLine($"{indent}foreach (var instance in {method.ContainingType.Name}_hierarchyInstances)");
+				sourceBuilder.AppendLine($"{indent}{{");
+				sourceBuilder.AppendLine($"{indent}\tif (instance == null)");
+				sourceBuilder.AppendLine($"{indent}\t\tcontinue;");
+				sourceBuilder.AppendLine($"{indent}\tglobal::{InjekkoGeneratorNaming.TrimGlobal(componentTypeName)}_Rizolver.Activate(instance, global::Injekko.Unity.InjekScopeRegistry.GetScope(instance));");
+				sourceBuilder.AppendLine($"{indent}}}");
+			}
+		}
 
-				var associatedFucktory = InjekkoFucktoryGeneration.FindFucktoryForTarget(fucktories, method.ContainingType);
-				if (associatedFucktory != null
-					&& associatedFucktory.RuntimeArgumentTypes.Length > 0
-					&& InjekkoFucktoryGeneration.MatchesTrailingRuntimeArguments(method, associatedFucktory.RuntimeArgumentTypes))
-				{
+		static void AppendSceneActivationLoops(StringBuilder sourceBuilder, SourceProductionContext context, Compilation compilation, System.Collections.Generic.List<IMethodSymbol> methods, System.Collections.Generic.List<FucktoryTargetModel> fucktories)
+		{
+			foreach (var method in methods)
+			{
+				if (!ShouldGenerateActivationForMethod(context, compilation, method, fucktories))
 					continue;
-				}
 
 				string componentTypeName = method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 				sourceBuilder.AppendLine($"\t\t\tvar {method.ContainingType.Name}_instances = global::UnityEngine.Object.FindObjectsByType<{componentTypeName}>(global::UnityEngine.FindObjectsInactive.Include, global::UnityEngine.FindObjectsSortMode.None);");
@@ -102,12 +125,25 @@ namespace Injekko.Codegen
 				sourceBuilder.AppendLine("\t\t\t\tglobal::" + InjekkoGeneratorNaming.TrimGlobal(componentTypeName) + "_Rizolver.Activate(instance, global::Injekko.Unity.InjekScopeRegistry.GetScope(instance));");
 				sourceBuilder.AppendLine("\t\t\t}");
 			}
+		}
 
-			sourceBuilder.AppendLine("\t\t}");
-			sourceBuilder.AppendLine("\t}");
-			sourceBuilder.AppendLine("}");
+		static bool ShouldGenerateActivationForMethod(SourceProductionContext context, Compilation compilation, IMethodSymbol method, System.Collections.Generic.List<FucktoryTargetModel> fucktories)
+		{
+			if (!InjekkoInjekSupport.TryValidateInjekMethod(context, method))
+				return false;
 
-			context.AddSource("InjekkoSceneActivationGenerated.g.cs", SourceText.From(sourceBuilder.ToString(), Encoding.UTF8));
+			if (!InjekkoFucktoryGeneration.IsComponentType(compilation, method.ContainingType))
+				return false;
+
+			var associatedFucktory = InjekkoFucktoryGeneration.FindFucktoryForTarget(fucktories, method.ContainingType);
+			if (associatedFucktory != null
+				&& associatedFucktory.RuntimeArgumentTypes.Length > 0
+				&& InjekkoFucktoryGeneration.MatchesTrailingRuntimeArguments(method, associatedFucktory.RuntimeArgumentTypes))
+			{
+				return false;
+			}
+
+			return true;
 		}
 	}
 }
