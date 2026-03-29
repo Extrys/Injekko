@@ -1,6 +1,8 @@
 # Build
 bin/
 obj/
+.dotnet/
+.nuget/
 
 # Visual Studio
 .vs/
@@ -17,7 +19,6 @@ obj/
 # Logs
 Logs/
 *.log
-InjekkoPlayground/Logs/*
 
 # Generated debug artifacts
 GeneratedCode.txt
@@ -25,4 +26,3 @@ GeneratedCode.txt
 # OS
 .DS_Store
 Thumbs.db
-.dotnet/.dotnet/
