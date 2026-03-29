@@ -4,6 +4,13 @@
   "displayName": "Injekko",
   "description": "Unity-first compile-time DI with generated resolvers and Fucktories.",
   "unity": "6000.0",
+  "samples": [
+    {
+      "displayName": "Playground",
+      "description": "Minimal sample showing ProjectScope, SceneScope, scene object injection and generated Fucktories.",
+      "path": "Samples~/Playground"
+    }
+  ],
   "author": {
     "name": "Extrys"
   }

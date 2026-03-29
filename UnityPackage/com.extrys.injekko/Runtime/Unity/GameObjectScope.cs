@@ -2,7 +2,8 @@ using UnityEngine;
 
 namespace Injekko.Unity
 {
-	public sealed class InjekScopeAnchor : MonoBehaviour
+	[DisallowMultipleComponent]
+	public sealed class GameObjectScope : MonoBehaviour
 	{
 		[SerializeField] InjekInstallerAsset[] installers = null;
 
@@ -10,7 +11,7 @@ namespace Injekko.Unity
 
 		void Awake()
 		{
-			ScopeNode = InjekScopeRegistry.EnsureSubscope(gameObject, installers);
+			ScopeNode = InjekScopeRegistry.EnsureGameObjectScope(gameObject, installers);
 		}
 	}
 }

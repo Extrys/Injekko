@@ -1,0 +1,113 @@
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Text;
+using System.Collections.Immutable;
+using System.Linq;
+using System.Text;
+
+namespace Injekko.Codegen
+{
+	[Generator]
+	public sealed class InjekkoSceneActivationGenerator : IIncrementalGenerator
+	{
+		public void Initialize(IncrementalGeneratorInitializationContext context)
+		{
+			var injekMethods = context.SyntaxProvider
+				.CreateSyntaxProvider(
+					static (node, _) => InjekkoGeneratorDiscovery.IsCandidateInjekMethod(node),
+					static (generatorContext, _) => InjekkoGeneratorDiscovery.GetAnnotatedMethod(generatorContext))
+				.Where(static methodSymbol => methodSymbol != null)
+				.Select(static (methodSymbol, _) => methodSymbol!);
+
+			var fucktoryTargets = context.SyntaxProvider
+				.CreateSyntaxProvider(
+					static (node, _) => InjekkoGeneratorDiscovery.IsCandidateFucktoryTarget(node),
+					static (generatorContext, _) => InjekkoGeneratorDiscovery.GetFucktoryTarget(generatorContext))
+				.Where(static target => target != null)
+				.Select(static (target, _) => target!);
+
+			var compilationAndInjekMethods = context.CompilationProvider.Combine(injekMethods.Collect());
+			var fullInput = compilationAndInjekMethods.Combine(fucktoryTargets.Collect());
+
+			context.RegisterSourceOutput(fullInput, static (productionContext, source) =>
+			{
+				Execute(productionContext, source.Left.Left, source.Left.Right, source.Right);
+			});
+		}
+
+		static void Execute(
+			SourceProductionContext context,
+			Compilation compilation,
+			ImmutableArray<IMethodSymbol> candidateMethods,
+			ImmutableArray<FucktoryTargetModel> candidateFucktories)
+		{
+			if (candidateMethods.IsDefaultOrEmpty)
+				return;
+
+			var methods = InjekkoGeneratorDiscovery.DistinctMethods(candidateMethods);
+			var fucktories = InjekkoGeneratorDiscovery.DistinctFucktories(candidateFucktories);
+			if (methods.Count == 0)
+				return;
+
+			if (compilation.GetTypeByMetadataName("UnityEngine.Component") == null)
+				return;
+
+			StringBuilder sourceBuilder = new();
+			sourceBuilder.AppendLine("namespace Injekko.Unity");
+			sourceBuilder.AppendLine("{");
+			sourceBuilder.AppendLine("\tinternal static class InjekkoSceneActivationBootstrap");
+			sourceBuilder.AppendLine("\t{");
+			sourceBuilder.AppendLine("\t\t[global::UnityEngine.RuntimeInitializeOnLoadMethod(global::UnityEngine.RuntimeInitializeLoadType.BeforeSceneLoad)]");
+			sourceBuilder.AppendLine("\t\tstatic void Register()");
+			sourceBuilder.AppendLine("\t\t{");
+			sourceBuilder.AppendLine("\t\t\tglobal::UnityEngine.SceneManagement.SceneManager.sceneLoaded -= OnSceneLoaded;");
+			sourceBuilder.AppendLine("\t\t\tglobal::UnityEngine.SceneManagement.SceneManager.sceneLoaded += OnSceneLoaded;");
+			sourceBuilder.AppendLine("\t\t}");
+			sourceBuilder.AppendLine();
+			sourceBuilder.AppendLine("\t\t[global::UnityEngine.RuntimeInitializeOnLoadMethod(global::UnityEngine.RuntimeInitializeLoadType.AfterSceneLoad)]");
+			sourceBuilder.AppendLine("\t\tstatic void ActivateInitialScene()");
+			sourceBuilder.AppendLine("\t\t{");
+			sourceBuilder.AppendLine("\t\t\tActivateScene(global::UnityEngine.SceneManagement.SceneManager.GetActiveScene());");
+			sourceBuilder.AppendLine("\t\t}");
+			sourceBuilder.AppendLine();
+			sourceBuilder.AppendLine("\t\tstatic void OnSceneLoaded(global::UnityEngine.SceneManagement.Scene scene, global::UnityEngine.SceneManagement.LoadSceneMode mode)");
+			sourceBuilder.AppendLine("\t\t{");
+			sourceBuilder.AppendLine("\t\t\tActivateScene(scene);");
+			sourceBuilder.AppendLine("\t\t}");
+			sourceBuilder.AppendLine();
+			sourceBuilder.AppendLine("\t\tstatic void ActivateScene(global::UnityEngine.SceneManagement.Scene scene)");
+			sourceBuilder.AppendLine("\t\t{");
+
+			foreach (var method in methods)
+			{
+				if (!InjekkoInjekSupport.TryValidateInjekMethod(context, method))
+					continue;
+
+				if (!InjekkoFucktoryGeneration.IsComponentType(compilation, method.ContainingType))
+					continue;
+
+				var associatedFucktory = InjekkoFucktoryGeneration.FindFucktoryForTarget(fucktories, method.ContainingType);
+				if (associatedFucktory != null
+					&& associatedFucktory.RuntimeArgumentTypes.Length > 0
+					&& InjekkoFucktoryGeneration.MatchesTrailingRuntimeArguments(method, associatedFucktory.RuntimeArgumentTypes))
+				{
+					continue;
+				}
+
+				string componentTypeName = method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+				sourceBuilder.AppendLine($"\t\t\tvar {method.ContainingType.Name}_instances = global::UnityEngine.Object.FindObjectsByType<{componentTypeName}>(global::UnityEngine.FindObjectsInactive.Include, global::UnityEngine.FindObjectsSortMode.None);");
+				sourceBuilder.AppendLine($"\t\t\tforeach (var instance in {method.ContainingType.Name}_instances)");
+				sourceBuilder.AppendLine("\t\t\t{");
+				sourceBuilder.AppendLine("\t\t\t\tif (instance == null || instance.gameObject.scene != scene)");
+				sourceBuilder.AppendLine("\t\t\t\t\tcontinue;");
+				sourceBuilder.AppendLine("\t\t\t\tglobal::" + InjekkoGeneratorNaming.TrimGlobal(componentTypeName) + "_Rizolver.Activate(instance, global::Injekko.Unity.InjekScopeRegistry.GetScope(instance));");
+				sourceBuilder.AppendLine("\t\t\t}");
+			}
+
+			sourceBuilder.AppendLine("\t\t}");
+			sourceBuilder.AppendLine("\t}");
+			sourceBuilder.AppendLine("}");
+
+			context.AddSource("InjekkoSceneActivationGenerated.g.cs", SourceText.From(sourceBuilder.ToString(), Encoding.UTF8));
+		}
+	}
+}

@@ -1,0 +1,50 @@
+name: Validate Analyzer Sync
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validate-analyzer-sync:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build generator and stage analyzer DLLs
+        run: dotnet build .\InjekkoGen\InjekkoGen.csproj -c Release
+
+      - name: Verify package analyzer DLLs are up to date
+        shell: pwsh
+        run: |
+          $trackedFiles = @(
+            'UnityPackage/com.extrys.injekko/Analyzers/InjekkoGen.dll',
+            'UnityPackage/com.extrys.injekko/Analyzers/Microsoft.CodeAnalysis.dll',
+            'UnityPackage/com.extrys.injekko/Analyzers/Microsoft.CodeAnalysis.CSharp.dll'
+          )
+
+          $changes = git status --porcelain -- $trackedFiles
+          if (-not [string]::IsNullOrWhiteSpace($changes)) {
+            Write-Host 'Analyzer DLLs are out of sync with the generator source.'
+            Write-Host 'Build InjekkoGen locally and commit the updated files from UnityPackage/com.extrys.injekko/Analyzers.'
+            Write-Host ''
+            Write-Host $changes
+            exit 1
+          }
+
+      - name: Upload package snapshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: injekko-unity-package
+          path: UnityPackage/com.extrys.injekko

@@ -12,4 +12,25 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.3.0" PrivateAssets="all" />
   </ItemGroup>
 
+  <Target Name="StageUnityAnalyzer" AfterTargets="Build">
+    <PropertyGroup>
+      <UnityAnalyzerDir>$(MSBuildProjectDirectory)\..\UnityPackage\com.extrys.injekko\Analyzers</UnityAnalyzerDir>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <UnityAnalyzerFiles Include="$(TargetDir)InjekkoGen.dll" />
+      <UnityAnalyzerFiles Include="$(TargetDir)Microsoft.CodeAnalysis.dll" />
+      <UnityAnalyzerFiles Include="$(TargetDir)Microsoft.CodeAnalysis.CSharp.dll" />
+    </ItemGroup>
+
+    <MakeDir Directories="$(UnityAnalyzerDir)" />
+    <Copy
+      SourceFiles="@(UnityAnalyzerFiles)"
+      DestinationFolder="$(UnityAnalyzerDir)"
+      SkipUnchangedFiles="false"
+      OverwriteReadOnlyFiles="true" />
+
+    <Message Importance="high" Text="Staged analyzer DLLs to $(UnityAnalyzerDir)" />
+  </Target>
+
 </Project>

@@ -9,7 +9,7 @@ namespace Injekko.Unity
 	{
 		static InjekkoProjectAsset projectAsset;
 		static InjekScopeNode projectScope;
-		static readonly Dictionary<ulong, InjekScopeNode> sceneScopes = new();
+		static readonly Dictionary<ulong, SceneScopeEntry> sceneScopes = new();
 		static readonly Dictionary<GameObject, InjekScopeNode> anchoredScopes = new();
 
 		public static void Configure(InjekkoProjectAsset asset)
@@ -34,15 +34,32 @@ namespace Injekko.Unity
 		public static InjekScopeNode EnsureSceneScope(Scene scene)
 		{
 			ulong sceneKey = GetSceneKey(scene);
-			if (sceneScopes.TryGetValue(sceneKey, out var scope))
-				return scope;
-
-			scope = new InjekScopeNode(scene.name, InjekScopeKind.Scene, scene, GetProjectScope());
-			if (projectAsset != null)
-				scope.Install(projectAsset.GetSceneInstallers(scene));
-			sceneScopes[sceneKey] = scope;
-			return scope;
+			SceneScopeEntry entry = GetOrCreateSceneEntry(scene, sceneKey);
+			TryAutoRegisterSceneScope(scene, entry);
+			EnsureSceneInstallers(entry);
+			return entry.Scope;
 		}
+
+		public static InjekScopeNode RegisterSceneScope(SceneScope sceneScope)
+		{
+			if (sceneScope == null)
+				throw new ArgumentNullException(nameof(sceneScope));
+
+			Scene scene = sceneScope.gameObject.scene;
+			ulong sceneKey = GetSceneKey(scene);
+			SceneScopeEntry entry = GetOrCreateSceneEntry(scene, sceneKey);
+
+			if (entry.SceneScopeComponent != null && entry.SceneScopeComponent != sceneScope)
+				throw new InjekException($"Only one SceneScope is allowed in scene '{scene.name}'.");
+
+			entry.SceneScopeComponent = sceneScope;
+			sceneScope.AssignScope(entry.Scope);
+			EnsureSceneInstallers(entry);
+			return entry.Scope;
+		}
+
+		public static InjekScopeNode EnsureGameObjectScope(GameObject gameObject, IEnumerable<InjekInstallerAsset> installers = null)
+			=> EnsureSubscope(gameObject, installers);
 
 		public static InjekScopeNode EnsureSubscope(GameObject gameObject, IEnumerable<InjekInstallerAsset> installers = null)
 		{
@@ -87,8 +104,8 @@ namespace Injekko.Unity
 		{
 			if (projectScope != null)
 				yield return projectScope;
-			foreach (var scope in sceneScopes.Values)
-				yield return scope;
+			foreach (var entry in sceneScopes.Values)
+				yield return entry.Scope;
 			foreach (var scope in anchoredScopes.Values)
 				yield return scope;
 		}
@@ -121,6 +138,65 @@ namespace Injekko.Unity
 			return EnsureSceneScope(gameObject.scene);
 		}
 
+		static SceneScopeEntry GetOrCreateSceneEntry(Scene scene, ulong sceneKey)
+		{
+			if (sceneScopes.TryGetValue(sceneKey, out var existingEntry))
+				return existingEntry;
+
+			SceneScopeEntry newEntry = new(new InjekScopeNode(scene.name, InjekScopeKind.Scene, scene, GetProjectScope()));
+			sceneScopes[sceneKey] = newEntry;
+			return newEntry;
+		}
+
+		static void TryAutoRegisterSceneScope(Scene scene, SceneScopeEntry entry)
+		{
+			if (entry.SceneScopeComponent != null || entry.HasScannedForSceneScope)
+				return;
+
+			entry.HasScannedForSceneScope = true;
+
+			SceneScope foundSceneScope = null;
+			foreach (GameObject rootObject in scene.GetRootGameObjects())
+			{
+				SceneScope[] scopes = rootObject.GetComponentsInChildren<SceneScope>(true);
+				foreach (SceneScope scope in scopes)
+				{
+					if (foundSceneScope != null && foundSceneScope != scope)
+						throw new InjekException($"Only one SceneScope is allowed in scene '{scene.name}'.");
+
+					foundSceneScope = scope;
+				}
+			}
+
+			if (foundSceneScope == null)
+				return;
+
+			entry.SceneScopeComponent = foundSceneScope;
+			foundSceneScope.AssignScope(entry.Scope);
+		}
+
+		static void EnsureSceneInstallers(SceneScopeEntry entry)
+		{
+			if (entry.SceneScopeComponent == null || entry.HasInstalledSceneInstallers)
+				return;
+
+			entry.Scope.Install(entry.SceneScopeComponent.Installers);
+			entry.HasInstalledSceneInstallers = true;
+		}
+
 		static ulong GetSceneKey(Scene scene) => scene.handle.GetRawData();
+
+		sealed class SceneScopeEntry
+		{
+			public SceneScopeEntry(InjekScopeNode scope)
+			{
+				Scope = scope;
+			}
+
+			public InjekScopeNode Scope { get; }
+			public SceneScope SceneScopeComponent { get; set; }
+			public bool HasInstalledSceneInstallers { get; set; }
+			public bool HasScannedForSceneScope { get; set; }
+		}
 	}
 }

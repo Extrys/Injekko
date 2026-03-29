@@ -12,6 +12,8 @@ This is the first Unity-first package scaffold for Injekko. It already contains:
 2. Use `Add package from disk...`.
 3. Pick `UnityPackage/com.extrys.injekko/package.json`.
 
+The package also exposes importable samples through the Package Manager `Samples` section.
+
 ## Prepare The Analyzer
 
 The repo includes `tools/StageUnityAnalyzer.ps1`, which builds the generator and stages only the analyzer plus the Roslyn compiler DLLs Unity actually needs into `Analyzers/`.
@@ -35,12 +37,16 @@ Create an `InjekkoProjectAsset` and place it at:
 
 That asset is loaded automatically before scene load and becomes the project root for scope setup.
 
+If a scene needs scene-specific bindings, add a `SceneScope` component somewhere in that scene and assign its installers there.
+
 ## First Runtime Model
 
 - Project scope is created automatically from `InjekkoProjectAsset`.
 - Scene scopes are created automatically for loaded scenes.
-- `InjekScopeAnchor` creates explicit subscopes on `GameObject`s when you need them.
+- If a `SceneScope` exists in that scene, its installers are applied to that scene scope.
+- `GameObjectScope` creates explicit subscopes on `GameObject`s when you need them.
 - `GetInjekScope()` on `GameObject` and `Component` resolves through the scope registry instead of repeated `GetComponent` searches.
+- Scene `MonoBehaviour`s with `[Injek]` are auto-activated by generated code after scene load, without runtime reflection.
 
 ## First Tooling Hooks
 
