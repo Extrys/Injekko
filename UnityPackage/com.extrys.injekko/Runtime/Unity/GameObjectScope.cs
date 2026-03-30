@@ -13,12 +13,12 @@ namespace Injekko.Unity
 		public InjekCompiledScopePlan GraphPlan => graph;
 		public string GraphId => graph != null ? graph.GraphId : string.Empty;
 		internal InjekGraphReferenceBinding[] GraphBindings => graphBindings ?? System.Array.Empty<InjekGraphReferenceBinding>();
-		internal InjekInstallerAsset[] Installers => graph == null ? installers ?? System.Array.Empty<InjekInstallerAsset>() : System.Array.Empty<InjekInstallerAsset>();
+		internal InjekInstallerAsset[] LegacyInstallers => graph == null ? installers ?? System.Array.Empty<InjekInstallerAsset>() : System.Array.Empty<InjekInstallerAsset>();
 
 		void Awake()
 		{
-			ScopeNode = InjekScopeRegistry.EnsureGameObjectScope(gameObject, Installers);
-			InjekGeneratedRuntimeRegistry.TryApplyGameObjectGraphPlan(this, ScopeNode);
+			ScopeNode = InjekScopeRegistry.EnsureGameObjectScope(gameObject, LegacyInstallers);
+			InjekGeneratedRuntimeRegistry.TryApplyGraphPlan(this, ScopeNode);
 		}
 
 		public UnityEngine.Object GetGraphReferenceOrNull(string slotId)

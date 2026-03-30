@@ -27,7 +27,7 @@ namespace Injekko.Unity
 
 			projectScope = new InjekScopeNode(projectAsset != null ? projectAsset.ProjectName : "InjekkoProject", InjekScopeKind.Project, projectAsset);
 			if (projectAsset != null)
-				InjekGeneratedRuntimeRegistry.TryApplyProjectGraphPlan(projectAsset, projectScope);
+				InjekGeneratedRuntimeRegistry.TryApplyGraphPlan(projectAsset, projectScope);
 			return projectScope;
 		}
 
@@ -167,9 +167,9 @@ namespace Injekko.Unity
 				if (cacheEntry.ParentScope != null && anchoredScopes.TryGetValue(cacheEntry.ParentScope.gameObject, out var parentNode))
 					parentScope = parentNode;
 
-				InjekScopeNode scopeNode = EnsureGameObjectScope(cacheEntry.Scope.gameObject, parentScope, cacheEntry.Scope.Installers);
+				InjekScopeNode scopeNode = EnsureGameObjectScope(cacheEntry.Scope.gameObject, parentScope, cacheEntry.Scope.LegacyInstallers);
 				cacheEntry.Scope.AssignScope(scopeNode);
-				InjekGeneratedRuntimeRegistry.TryApplyGameObjectGraphPlan(cacheEntry.Scope, scopeNode);
+				InjekGeneratedRuntimeRegistry.TryApplyGraphPlan(cacheEntry.Scope, scopeNode);
 			}
 		}
 

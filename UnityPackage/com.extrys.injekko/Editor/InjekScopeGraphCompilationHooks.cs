@@ -70,7 +70,7 @@ namespace Injekko.Editor
 		}
 	}
 
-	internal sealed class InjekScopeGraphAssetPostprocessor : AssetPostprocessor
+	internal sealed class InjekScopeGraphPostprocessor : AssetPostprocessor
 	{
 		static void OnPostprocessAllAssets(string[] importedAssets, string[] deletedAssets, string[] movedAssets, string[] movedFromAssetPaths)
 		{
@@ -88,7 +88,8 @@ namespace Injekko.Editor
 		{
 			return assetPath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)
 				|| assetPath.EndsWith(".unity", StringComparison.OrdinalIgnoreCase)
-				|| assetPath.EndsWith(".asset", StringComparison.OrdinalIgnoreCase);
+				|| assetPath.EndsWith(".asset", StringComparison.OrdinalIgnoreCase)
+				|| assetPath.EndsWith(".injekgraph", StringComparison.OrdinalIgnoreCase);
 		}
 	}
 

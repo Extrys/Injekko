@@ -48,7 +48,7 @@ Each gameplay scene should also contain one `SceneScope` component with its own 
 ## First Runtime Model
 
 - Project scope is created automatically from `Resources/InjekkoProjectAsset`, preferring the direct `.injekgraph` workflow.
-- Scene scopes are created automatically for loaded scenes, but the main-path workflow expects one explicit `SceneScope` per gameplay scene.
+- Each gameplay scene is expected to declare one explicit `SceneScope` component.
 - `ProjectScope` and `SceneScope` bindings are now driven by graph assets that compile to generated binding plans.
 - `GameObjectScope` creates explicit subscopes on `GameObject`s when you need them.
 - `GetInjekScope()` on `GameObject` and `Component` resolves through the scope registry instead of repeated `GetComponent` searches.
@@ -61,7 +61,7 @@ Each gameplay scene should also contain one `SceneScope` component with its own 
 - `.injekgraph` is the reusable authoring asset for `ProjectScope` and `SceneScope`, and imports into a draggable compiled runtime plan.
 - Graph nodes compile to generated binding-plan code in `Assets/Injekko/Generated/InjekkoGraphPlans.Generated.cs`.
 - `SceneScope` stores concrete scene/object references for graph slots, Timeline-style.
-- `InjekInstallerAsset` still exists as an escape hatch through the `CustomInstaller` graph node.
+- The first supported graph path is explicit instance binding through reference slots.
 
 ## Prefab-Backed Fucktories
 
@@ -83,10 +83,5 @@ The package currently includes:
 
 - `Tools/Injekko/Validate Setup`
 - `Tools/Injekko/Compile Graph Plans`
-- `Tools/Injekko/Write Graph Report`
 
-The graph report writes to:
-
-- `Assets/Injekko/Generated/InjekkoGraphReport.txt`
-
-That gives us a first editor-visible artifact from generated dependency metadata, alongside graph-plan compilation and scene cache generation for the graph-driven workflow.
+That gives us the first essential editor hooks for the graph-driven workflow, alongside scene cache generation and generated graph-plan compilation.

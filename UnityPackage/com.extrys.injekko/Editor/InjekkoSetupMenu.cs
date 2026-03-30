@@ -1,10 +1,8 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using UnityEditor;
 using UnityEngine;
-using Injekko;
 using Injekko.Unity;
 
 namespace Injekko.Editor
@@ -13,7 +11,6 @@ namespace Injekko.Editor
 	{
 		const string AnalyzerAssetPath = "Packages/com.extrys.injekko/Analyzers/InjekkoGen.dll";
 		const string AnalyzerLabel = "RoslynAnalyzer";
-		const string ReportOutputPath = "Assets/Injekko/Generated/InjekkoGraphReport.txt";
 		const string ProjectResourceName = "InjekkoProjectAsset";
 
 		[MenuItem("Tools/Injekko/Validate Setup")]
@@ -34,60 +31,6 @@ namespace Injekko.Editor
 
 			Debug.Log(report);
 			EditorUtility.DisplayDialog("Injekko Setup", report, "OK");
-		}
-
-		[MenuItem("Tools/Injekko/Write Graph Report")]
-		public static void WriteGraphReport()
-		{
-			Type metadataFactoryType = AppDomain.CurrentDomain
-				.GetAssemblies()
-				.Select(static assembly => assembly.GetType("Injekko_GraphMetadata", throwOnError: false))
-				.FirstOrDefault(static type => type != null);
-
-			if (metadataFactoryType == null)
-			{
-				EditorUtility.DisplayDialog(
-					"Injekko Graph Report",
-					"Generated graph metadata was not found. Make sure the analyzer is imported correctly and the consumer assembly has compiled.",
-					"OK");
-				return;
-			}
-
-			MethodInfo createMethod = metadataFactoryType.GetMethod(
-				"Create",
-				BindingFlags.Public | BindingFlags.Static);
-
-			if (createMethod == null)
-			{
-				EditorUtility.DisplayDialog(
-					"Injekko Graph Report",
-					"The generated metadata type exists, but it does not expose a public static Create() method.",
-					"OK");
-				return;
-			}
-
-			if (createMethod.Invoke(null, null) is not InjekGraphMetadata metadata)
-			{
-				EditorUtility.DisplayDialog(
-					"Injekko Graph Report",
-					"Failed to create graph metadata from the generated factory.",
-					"OK");
-				return;
-			}
-
-			string report = InjekkoGraphReportBuilder.BuildReport(metadata);
-			string fullDirectoryPath = Path.GetDirectoryName(ReportOutputPath);
-			if (!string.IsNullOrWhiteSpace(fullDirectoryPath))
-				Directory.CreateDirectory(fullDirectoryPath);
-
-			File.WriteAllText(ReportOutputPath, report);
-			AssetDatabase.Refresh();
-
-			Debug.Log($"Injekko graph report written to {ReportOutputPath}");
-			EditorUtility.DisplayDialog(
-				"Injekko Graph Report",
-				$"Graph report written to {ReportOutputPath}",
-				"OK");
 		}
 
 		[MenuItem("Tools/Injekko/Compile Graph Plans")]

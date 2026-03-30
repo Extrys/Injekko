@@ -7,34 +7,52 @@ namespace Injekko.Unity
 {
 	public static class InjekGeneratedRuntimeRegistry
 	{
-		static readonly Dictionary<string, Action<InjekkoProjectAsset, InjekScopeNode>> projectGraphPlans = new(StringComparer.Ordinal);
-		static readonly Dictionary<string, Action<SceneScope, InjekScopeNode>> sceneGraphPlans = new(StringComparer.Ordinal);
-		static readonly Dictionary<string, Action<GameObjectScope, InjekScopeNode>> gameObjectGraphPlans = new(StringComparer.Ordinal);
+		static readonly Dictionary<string, Action<IInjekGraphReferenceHost, InjekScopeNode>> graphPlans = new(StringComparer.Ordinal);
 		static Action<SceneScope> sceneScopeActivator;
 		static Action<GameObject> hierarchyActivator;
 
-		public static void RegisterProjectGraphPlan(string graphId, Action<InjekkoProjectAsset, InjekScopeNode> applyPlan)
+		public static void RegisterGraphPlan(string graphId, Action<IInjekGraphReferenceHost, InjekScopeNode> applyPlan)
 		{
 			if (string.IsNullOrWhiteSpace(graphId) || applyPlan == null)
 				return;
 
-			projectGraphPlans[graphId] = applyPlan;
+			graphPlans[graphId] = applyPlan;
+		}
+
+		public static void RegisterProjectGraphPlan(string graphId, Action<InjekkoProjectAsset, InjekScopeNode> applyPlan)
+		{
+			if (applyPlan == null)
+				return;
+
+			RegisterGraphPlan(graphId, (host, scope) =>
+			{
+				if (host is InjekkoProjectAsset projectAsset)
+					applyPlan(projectAsset, scope);
+			});
 		}
 
 		public static void RegisterSceneGraphPlan(string graphId, Action<SceneScope, InjekScopeNode> applyPlan)
 		{
-			if (string.IsNullOrWhiteSpace(graphId) || applyPlan == null)
+			if (applyPlan == null)
 				return;
 
-			sceneGraphPlans[graphId] = applyPlan;
+			RegisterGraphPlan(graphId, (host, scope) =>
+			{
+				if (host is SceneScope sceneScope)
+					applyPlan(sceneScope, scope);
+			});
 		}
 
 		public static void RegisterGameObjectGraphPlan(string graphId, Action<GameObjectScope, InjekScopeNode> applyPlan)
 		{
-			if (string.IsNullOrWhiteSpace(graphId) || applyPlan == null)
+			if (applyPlan == null)
 				return;
 
-			gameObjectGraphPlans[graphId] = applyPlan;
+			RegisterGraphPlan(graphId, (host, scope) =>
+			{
+				if (host is GameObjectScope gameObjectScope)
+					applyPlan(gameObjectScope, scope);
+			});
 		}
 
 		public static void RegisterSceneActivation(Action<SceneScope> activateSceneScope, Action<GameObject> activateHierarchy)
@@ -43,41 +61,26 @@ namespace Injekko.Unity
 			hierarchyActivator = activateHierarchy;
 		}
 
-		public static bool TryApplyProjectGraphPlan(InjekkoProjectAsset projectAsset, InjekScopeNode scope)
+		public static bool TryApplyGraphPlan(IInjekGraphReferenceHost host, InjekScopeNode scope)
 		{
-			if (projectAsset == null || scope == null)
+			if (host == null || scope == null)
 				return false;
 
-			if (!projectGraphPlans.TryGetValue(projectAsset.GraphId, out var plan))
+			if (!graphPlans.TryGetValue(host.GraphId, out var plan))
 				return false;
 
-			plan(projectAsset, scope);
+			plan(host, scope);
 			return true;
 		}
 
-		public static bool TryApplySceneGraphPlan(SceneScope sceneScope, InjekScopeNode scope)
-		{
-			if (sceneScope == null || scope == null)
-				return false;
+		public static bool TryApplyProjectGraphPlan(InjekkoProjectAsset host, InjekScopeNode scope)
+			=> TryApplyGraphPlan(host, scope);
 
-			if (!sceneGraphPlans.TryGetValue(sceneScope.GraphId, out var plan))
-				return false;
+		public static bool TryApplySceneGraphPlan(SceneScope host, InjekScopeNode scope)
+			=> TryApplyGraphPlan(host, scope);
 
-			plan(sceneScope, scope);
-			return true;
-		}
-
-		public static bool TryApplyGameObjectGraphPlan(GameObjectScope gameObjectScope, InjekScopeNode scope)
-		{
-			if (gameObjectScope == null || scope == null)
-				return false;
-
-			if (!gameObjectGraphPlans.TryGetValue(gameObjectScope.GraphId, out var plan))
-				return false;
-
-			plan(gameObjectScope, scope);
-			return true;
-		}
+		public static bool TryApplyGameObjectGraphPlan(GameObjectScope host, InjekScopeNode scope)
+			=> TryApplyGraphPlan(host, scope);
 
 		public static bool TryActivateSceneScope(SceneScope sceneScope)
 		{

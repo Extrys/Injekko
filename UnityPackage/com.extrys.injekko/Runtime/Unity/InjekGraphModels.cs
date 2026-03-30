@@ -39,69 +39,6 @@ namespace Injekko.Unity
 	}
 
 	[Serializable]
-	public sealed class InjekGraphNodeModel
-	{
-		[SerializeField] string nodeId = string.Empty;
-		[SerializeField] string title = string.Empty;
-		[SerializeField] InjekGraphNodeKind kind = InjekGraphNodeKind.BindInstance;
-		[SerializeField] InjekGraphTypeReference serviceType;
-		[SerializeField] InjekGraphTypeReference implementationType;
-		[SerializeField] string referenceSlotId = string.Empty;
-		[SerializeField] Vector2 editorPosition = Vector2.zero;
-
-		public string NodeId => nodeId ?? string.Empty;
-		public string Title
-		{
-			get => string.IsNullOrWhiteSpace(title) ? kind.ToString() : title;
-			set => title = value ?? string.Empty;
-		}
-
-		public InjekGraphNodeKind Kind
-		{
-			get => kind;
-			set => kind = value;
-		}
-
-		public InjekGraphTypeReference ServiceType
-		{
-			get => serviceType;
-			set => serviceType = value;
-		}
-
-		public InjekGraphTypeReference ImplementationType
-		{
-			get => implementationType;
-			set => implementationType = value;
-		}
-
-		public string ReferenceSlotId
-		{
-			get => referenceSlotId ?? string.Empty;
-			set => referenceSlotId = value ?? string.Empty;
-		}
-
-		public Vector2 EditorPosition
-		{
-			get => editorPosition;
-			set => editorPosition = value;
-		}
-
-		public void EnsureIdentifiers()
-		{
-			if (string.IsNullOrWhiteSpace(nodeId))
-				nodeId = Guid.NewGuid().ToString("N");
-
-			if (RequiresReferenceSlot() && string.IsNullOrWhiteSpace(referenceSlotId))
-				referenceSlotId = nodeId;
-		}
-
-		public bool RequiresReferenceSlot()
-			=> kind == InjekGraphNodeKind.BindInstance
-			|| kind == InjekGraphNodeKind.BindPrefab
-			|| kind == InjekGraphNodeKind.CustomInstaller;
-	}
-
-	[Serializable]
 	public sealed class InjekGraphReferenceBinding
 	{
 		[SerializeField] string slotId = string.Empty;

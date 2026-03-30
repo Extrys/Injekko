@@ -51,14 +51,9 @@ namespace Injekko.Unity
 				configuredProjectAsset = ScriptableObject.CreateInstance<InjekkoProjectAsset>();
 
 			InjekScopeRegistry.Configure(configuredProjectAsset);
-			SceneManager.sceneLoaded += OnSceneLoaded;
+			SceneManager.sceneUnloaded -= OnSceneUnloaded;
 			SceneManager.sceneUnloaded += OnSceneUnloaded;
 			isInitialized = true;
-		}
-
-		static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
-		{
-			InjekScopeRegistry.EnsureSceneScope(scene);
 		}
 
 		static void OnSceneUnloaded(Scene scene)

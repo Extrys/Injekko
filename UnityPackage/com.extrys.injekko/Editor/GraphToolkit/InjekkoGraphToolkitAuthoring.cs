@@ -45,7 +45,7 @@ namespace Injekko.Editor.GraphToolkit
 					break;
 
 				case TypeBlock typeBlock:
-					ValidateTypeDeclaration(infos, blocks, typeBlock);
+					ValidateTypeDeclaration(infos, typeBlock);
 					break;
 
 				default:
@@ -77,7 +77,7 @@ namespace Injekko.Editor.GraphToolkit
 
 			if (blocks[1] is not IInjekkoDestinationBlock destinationBlock)
 			{
-				infos.LogError("Instance declarations must end with ToInjectableType, ToTypeInferred or ToTypeFromMonoScript.", blocks[1]);
+				infos.LogError("Instance declarations must end with ToInjectableType or ToTypeInferred.", blocks[1]);
 				return;
 			}
 
@@ -88,29 +88,9 @@ namespace Injekko.Editor.GraphToolkit
 				infos.LogError($"Instance source type '{sourceType.FullName}' is not assignable to service type '{serviceType.FullName}'.", blocks[1]);
 		}
 
-		static void ValidateTypeDeclaration(GraphLogger infos, BindDeclarationBlockNode[] blocks, TypeBlock typeBlock)
+		static void ValidateTypeDeclaration(GraphLogger infos, TypeBlock typeBlock)
 		{
-			Type implementationType = typeBlock.GetValueType();
-			if (implementationType == null)
-				infos.LogError("Type needs a connected Bind Type input or a MonoScript value on that port.", typeBlock);
-
-			if (blocks.Length > 2)
-				infos.LogError("Type declarations can only contain Type plus one To block in this phase.", typeBlock);
-
-			if (blocks.Length == 1)
-				return;
-
-			if (blocks[1] is not IInjekkoDestinationBlock destinationBlock)
-			{
-				infos.LogError("Type declarations must end with ToInjectableType, ToTypeInferred or ToTypeFromMonoScript.", blocks[1]);
-				return;
-			}
-
-			Type serviceType = destinationBlock.GetServiceType(implementationType);
-			if (serviceType == null)
-				infos.LogError("The selected To block could not resolve a service type.", blocks[1]);
-			else if (implementationType != null && !serviceType.IsAssignableFrom(implementationType))
-				infos.LogError($"Type implementation '{implementationType.FullName}' is not assignable to service type '{serviceType.FullName}'.", blocks[1]);
+			infos.LogError("Type declarations are currently parked. Use Instance declarations in the main path.", typeBlock);
 		}
 
 		static void ValidateReferenceCompatibility(GraphLogger infos, BindDeclarationBlockNode block, Type serviceType, UnityEngine.Object reference, string blockName)
@@ -365,7 +345,6 @@ namespace Injekko.Editor.GraphToolkit
 	}
 
 	[Serializable]
-	[UseWithContext(typeof(BindDeclarationContextNode))]
 	[Node("", "", "Type")]
 	internal sealed class TypeBlock : BindDeclarationBlockNode, IInjekkoTypeAuthoringNode
 	{
@@ -418,31 +397,6 @@ namespace Injekko.Editor.GraphToolkit
 	internal sealed class ToTypeInferredBlock : BindDeclarationBlockNode, IInjekkoDestinationBlock
 	{
 		public Type GetServiceType(Type sourceType) => sourceType;
-	}
-
-	[Serializable]
-	[UseWithContext(typeof(BindDeclarationContextNode))]
-	[Node("", "", "To Type From MonoScript")]
-	internal sealed class ToTypeFromMonoScriptBlock : BindDeclarationBlockNode, IInjekkoDestinationBlock
-	{
-		const string k_TypeOptionName = "Type";
-
-		[SerializeField, HideInInspector] MonoScript typeScript;
-
-		protected override void OnDefineOptions(IOptionDefinitionContext context)
-		{
-			context.AddOption<MonoScript>(k_TypeOptionName)
-				.WithDisplayName("Type")
-				.WithDefaultValue(typeScript);
-		}
-
-		public Type GetServiceType(Type sourceType)
-		{
-			if (InjekkoNodeOptionUtility.TryGetOptionValue(this, k_TypeOptionName, out MonoScript configuredScript))
-				return configuredScript != null ? configuredScript.GetClass() : null;
-
-			return typeScript != null ? typeScript.GetClass() : null;
-		}
 	}
 
 	[Serializable]

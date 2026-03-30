@@ -30,7 +30,7 @@ namespace Injekko.Unity
 				return;
 
 			ScopeNode = InjekScopeRegistry.RegisterSceneScope(this);
-			InjekGeneratedRuntimeRegistry.TryApplySceneGraphPlan(this, ScopeNode);
+			InjekGeneratedRuntimeRegistry.TryApplyGraphPlan(this, ScopeNode);
 			InjekScopeRegistry.RegisterCachedSceneGameObjectScopes(this);
 			InjekGeneratedRuntimeRegistry.TryActivateSceneScope(this);
 			sceneBootstrapCompleted = true;

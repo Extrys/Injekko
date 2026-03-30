@@ -150,14 +150,6 @@ namespace Injekko.Editor.GraphToolkit
 			if (graphPlan == null)
 				return Array.Empty<InjekkoBindingAuthoringDefinition>();
 
-			string assetPath = GetAuthoringGraphAssetPath(graphPlan);
-			if (!string.IsNullOrWhiteSpace(assetPath))
-			{
-				var liveDefinitions = GetBindingDefinitions(assetPath);
-				if (liveDefinitions.Count > 0)
-					return liveDefinitions;
-			}
-
 			if (graphPlan.BindingDefinitions.Length > 0)
 				return graphPlan.BindingDefinitions.Select(InjekkoBindingAuthoringDefinition.FromCompiledDefinition).ToArray();
 
@@ -296,17 +288,7 @@ namespace Injekko.Editor.GraphToolkit
 				}
 
 				case TypeBlock typeBlock:
-				{
-					implementationType = typeBlock.GetValueType();
-					serviceType = blocks.Length > 1 && blocks[1] is IInjekkoDestinationBlock destinationBlock
-						? destinationBlock.GetServiceType(implementationType)
-						: implementationType;
-					kind = implementationType != null && serviceType != null && implementationType != serviceType
-						? InjekGraphNodeKind.BindRedirectScoped
-						: InjekGraphNodeKind.BindScoped;
-					displayName = context.DisplayName ?? string.Empty;
-					break;
-				}
+					return null;
 
 				default:
 					return null;
