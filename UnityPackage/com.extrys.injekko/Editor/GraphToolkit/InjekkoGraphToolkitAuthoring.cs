@@ -72,7 +72,7 @@ namespace Injekko.Editor.GraphToolkit
 
 			Type sourceType = instanceBlock.GetValueType();
 			if (sourceType == null)
-				infos.LogError("Instance needs a connected BindType/Type node or a MonoScript fallback.", instanceBlock);
+				infos.LogError("Instance needs a connected Bind Type input or a MonoScript value on that port.", instanceBlock);
 
 			UnityEngine.Object reference = instanceBlock.GetDefaultReference(sourceType);
 			if (reference == null)
@@ -98,7 +98,7 @@ namespace Injekko.Editor.GraphToolkit
 		{
 			Type implementationType = typeBlock.GetValueType();
 			if (implementationType == null)
-				infos.LogError("Type needs a connected BindType/Type node or a MonoScript fallback.", typeBlock);
+				infos.LogError("Type needs a connected Bind Type input or a MonoScript value on that port.", typeBlock);
 
 			if (blocks.Length < 2)
 			{
@@ -156,7 +156,7 @@ namespace Injekko.Editor.GraphToolkit
 	}
 
 	[Serializable]
-	[Node("Injekko/Types", "", "Type")]
+	[Node("", "", "Type")]
 	internal sealed class InjekkoTypeNode : Node, IInjekkoTypeAuthoringNode
 	{
 		const string k_TypeOptionName = "Type";
@@ -180,12 +180,12 @@ namespace Injekko.Editor.GraphToolkit
 
 		protected override void OnDefinePorts(IPortDefinitionContext context)
 		{
-			context.AddOutputPort<InjekkoTypePort>("Type").Build();
+			context.AddOutputPort<MonoScript>("Type").Build();
 		}
 	}
 
 	[Serializable]
-	[Node("Injekko/Bind", "", "Bind")]
+	[Node("", "", "Bind Declaration")]
 	internal sealed class BindDeclarationContextNode : ContextNode, IInjekkoBindingAuthoringNode
 	{
 		public InjekGraphNodeKind Kind
@@ -261,6 +261,13 @@ namespace Injekko.Editor.GraphToolkit
 
 			return null;
 		}
+
+		public override void OnEnable()
+		{
+			//TODO: Thia is a temporary example, but in future iterations, this text should be constructed automatically based on the contained blocks to give a more accurate preview of the declaration
+			Subtitle = "Inferred bind type (TypeA)\nBind<TypeA>(instanceOfTypeA).To<ITypeCustom>().FromNew()";
+			DefaultColor = Color.deepSkyBlue * 0.9f;
+		}
 	}
 
 	[Serializable]
@@ -277,23 +284,12 @@ namespace Injekko.Editor.GraphToolkit
 
 	[Serializable]
 	[UseWithContext(typeof(BindDeclarationContextNode))]
-	[Node("Injekko/Bind Blocks", "", "Type")]
+	[Node("", "", "Type")]
 	internal sealed class TypeBlock : BindDeclarationBlockNode, IInjekkoTypeAuthoringNode
 	{
-		const string k_TypeOptionName = "Type";
-
-		[SerializeField, HideInInspector] MonoScript typeScript;
-
-		protected override void OnDefineOptions(IOptionDefinitionContext context)
-		{
-			context.AddOption<MonoScript>(k_TypeOptionName)
-				.WithDisplayName("Type")
-				.WithDefaultValue(typeScript);
-		}
-
 		protected override void OnDefinePorts(IPortDefinitionContext context)
 		{
-			context.AddInputPort<InjekkoTypePort>("Bind Type").Build();
+			context.AddInputPort<MonoScript>("Bind Type").Build();
 		}
 
 		public Type GetValueType()
@@ -303,34 +299,40 @@ namespace Injekko.Editor.GraphToolkit
 			if (typeNode != null)
 				return typeNode.GetValueType();
 
-			if (InjekkoNodeOptionUtility.TryGetOptionValue(this, k_TypeOptionName, out MonoScript configuredScript))
-				return configuredScript != null ? configuredScript.GetClass() : null;
+			if (typePort != null && typePort.TryGetValue(out MonoScript portScript))
+				return portScript != null ? portScript.GetClass() : null;
 
-			return typeScript != null ? typeScript.GetClass() : null;
+			return null;
 		}
 	}
 
 	[Serializable]
 	[UseWithContext(typeof(BindDeclarationContextNode))]
-	[Node("Injekko/Bind Blocks", "", "To Injectable Type")]
+	[Node("", "", "To Injectable Type")]
 	internal sealed class ToInjectableTypeBlock : BindDeclarationBlockNode, IInjekkoDestinationBlock
 	{
 		protected override void OnDefinePorts(IPortDefinitionContext context)
 		{
-			context.AddInputPort<InjekkoTypePort>("Injectable Type").Build();
+			context.AddInputPort<MonoScript>("Injectable Type").Build();
 		}
 
 		public Type GetServiceType(Type sourceType)
 		{
 			var typePort = GetInputPortByName("Injectable Type");
 			var typeNode = typePort?.FirstConnectedPort?.GetNode() as IInjekkoTypeAuthoringNode;
-			return typeNode?.GetValueType();
+			if (typeNode != null)
+				return typeNode.GetValueType();
+
+			if (typePort != null && typePort.TryGetValue(out MonoScript portScript))
+				return portScript != null ? portScript.GetClass() : null;
+
+			return null;
 		}
 	}
 
 	[Serializable]
 	[UseWithContext(typeof(BindDeclarationContextNode))]
-	[Node("Injekko/Bind Blocks", "", "To Type Inferred")]
+	[Node("", "", "To Type Inferred")]
 	internal sealed class ToTypeInferredBlock : BindDeclarationBlockNode, IInjekkoDestinationBlock
 	{
 		public Type GetServiceType(Type sourceType) => sourceType;
@@ -338,7 +340,7 @@ namespace Injekko.Editor.GraphToolkit
 
 	[Serializable]
 	[UseWithContext(typeof(BindDeclarationContextNode))]
-	[Node("Injekko/Bind Blocks", "", "To Type From MonoScript")]
+	[Node("", "", "To Type From MonoScript")]
 	internal sealed class ToTypeFromMonoScriptBlock : BindDeclarationBlockNode, IInjekkoDestinationBlock
 	{
 		const string k_TypeOptionName = "Type";
@@ -363,17 +365,15 @@ namespace Injekko.Editor.GraphToolkit
 
 	[Serializable]
 	[UseWithContext(typeof(BindDeclarationContextNode))]
-	[Node("Injekko/Bind Blocks", "", "Instance")]
+	[Node("", "", "Instance")]
 	internal sealed class InstanceBlock : BindDeclarationBlockNode, IInjekkoReferenceSourceBlock, IInjekkoTypeAuthoringNode
 	{
 		const string k_FieldNameOptionName = "FieldName";
 		const string k_ReferenceOptionName = "InstanceReference";
-		const string k_TypeOptionName = "Type";
 
 		[SerializeField, HideInInspector] string fieldName = string.Empty;
 		[SerializeField] string referenceSlotId = Guid.NewGuid().ToString("N");
 		[SerializeField, HideInInspector] UnityEngine.Object defaultReference;
-		[SerializeField, HideInInspector] MonoScript typeScript;
 
 		public string FieldName
 		{
@@ -398,15 +398,11 @@ namespace Injekko.Editor.GraphToolkit
 			context.AddOption<UnityEngine.Object>(k_ReferenceOptionName)
 				.WithDisplayName("Instance Reference")
 				.WithDefaultValue(defaultReference);
-
-			context.AddOption<MonoScript>(k_TypeOptionName)
-				.WithDisplayName("Type (Fallback)")
-				.WithDefaultValue(typeScript);
 		}
 
 		protected override void OnDefinePorts(IPortDefinitionContext context)
 		{
-			context.AddInputPort<InjekkoTypePort>("Bind Type").Build();
+			context.AddInputPort<MonoScript>("Bind Type").Build();
 		}
 
 		public Type GetValueType()
@@ -416,10 +412,10 @@ namespace Injekko.Editor.GraphToolkit
 			if (typeNode != null)
 				return typeNode.GetValueType();
 
-			if (InjekkoNodeOptionUtility.TryGetOptionValue(this, k_TypeOptionName, out MonoScript configuredScript))
-				return configuredScript != null ? configuredScript.GetClass() : null;
+			if (typePort != null && typePort.TryGetValue(out MonoScript portScript))
+				return portScript != null ? portScript.GetClass() : null;
 
-			return typeScript != null ? typeScript.GetClass() : null;
+			return null;
 		}
 
 		public UnityEngine.Object GetDefaultReference(Type expectedType)
@@ -429,10 +425,6 @@ namespace Injekko.Editor.GraphToolkit
 
 			return InjekkoNodeOptionUtility.NormalizeReferenceForType(defaultReference, expectedType);
 		}
-	}
-
-	internal sealed class InjekkoTypePort : ScriptableObject
-	{
 	}
 
 	internal static class InjekkoNodeOptionUtility

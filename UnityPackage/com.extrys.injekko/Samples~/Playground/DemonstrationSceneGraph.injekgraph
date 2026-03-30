@@ -1,0 +1,183 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &1
+MonoBehaviour:
+  m_ObjectHideFlags: 61
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 12501, guid: 0000000000000000e000000000000000, type: 0}
+  m_Name: DemonstrationSceneGraph
+  m_EditorClassIdentifier: UnityEditor.dll::Unity.GraphToolkit.Editor.Implementation.GraphObjectImp
+  m_GraphModel:
+    rid: 3262897087049630213
+  references:
+    version: 2
+    RefIds:
+    - rid: -2
+      type: {class: , ns: , asm: }
+    - rid: 3262897087049630213
+      type: {class: GraphModelImp, ns: Unity.GraphToolkit.Editor.Implementation, asm: UnityEditor.GraphToolkitModule}
+      data:
+        m_Guid:
+          m_Value0: 13591699827137311273
+          m_Value1: 10087371428391405589
+        m_HashGuid:
+          serializedVersion: 2
+          Hash: 29f2411afb6a9fbc15c8b172de8afd8b
+        m_Name: 
+        m_GraphNodeModels:
+        - rid: 3262897087049630222
+        m_GraphWireModels: []
+        m_GraphStickyNoteModels: []
+        m_GraphPlacematModels: []
+        m_GraphVariableModels: []
+        m_GraphPortalModels: []
+        m_SectionModels:
+        - rid: 3262897087049630214
+        m_LocalSubgraphs: []
+        m_LastKnownBounds:
+          serializedVersion: 2
+          x: 702
+          y: 82
+          width: 470
+          height: 318
+        m_GraphElementMetaData:
+        - m_Guid:
+            m_Value0: 12593824996745602502
+            m_Value1: 3105285327017157442
+          m_HashGuid:
+            serializedVersion: 2
+            Hash: c6e5740e1c41c6ae4223176b8d30182b
+          m_Category: 4
+          m_Index: 0
+        m_EntryPoint:
+          rid: 3262897087049630222
+        m_Graph:
+          rid: 3262897087049630215
+    - rid: 3262897087049630214
+      type: {class: SectionModel, ns: Unity.GraphToolkit.Editor, asm: UnityEditor.GraphToolkitModule}
+      data:
+        m_Guid:
+          m_Value0: 3029872417080351275
+          m_Value1: 1547369662766716258
+        m_HashGuid:
+          serializedVersion: 2
+          Hash: 2b1ad40ee9440c2a62156d8d825c7915
+        m_Version: 2
+        m_Items: []
+        m_Title: 
+    - rid: 3262897087049630215
+      type: {class: InjekkoAuthoringGraph, ns: Injekko.Editor.GraphToolkit, asm: Injekko.Editor}
+      data: 
+    - rid: 3262897087049630222
+      type: {class: UserContextNodeModelImp, ns: Unity.GraphToolkit.Editor.Implementation,
+        asm: UnityEditor.GraphToolkitModule}
+      data:
+        m_Guid:
+          m_Value0: 12593824996745602502
+          m_Value1: 3105285327017157442
+        m_HashGuid:
+          serializedVersion: 2
+          Hash: c6e5740e1c41c6ae4223176b8d30182b
+        m_Version: 2
+        m_Position: {x: 702.1935, y: 81.84863}
+        m_Title: 
+        m_Tooltip: 
+        m_NodePreviewModel:
+          rid: -2
+        m_State: 0
+        m_InputConstantsById:
+          m_KeyList: []
+          m_ValueList: []
+        m_InputPortInfos:
+          expandedPortsById:
+            m_KeyList: []
+            m_ValueList: 
+        m_OutputPortInfos:
+          expandedPortsById:
+            m_KeyList: []
+            m_ValueList: 
+        m_Collapsed: 0
+        m_CurrentModeIndex: 0
+        m_ElementColor:
+          m_Color: {r: 0, g: 0, b: 0, a: 0}
+          m_HasUserColor: 0
+        m_Blocks:
+        - rid: 3262897087049630224
+        m_BlockGuids:
+        - serializedVersion: 2
+          Hash: cd32763fdf6b307d86a47418fbc750d7
+        m_Subtitle: 
+        m_Node:
+          rid: 3262897087049630223
+    - rid: 3262897087049630223
+      type: {class: BindDeclarationContextNode, ns: Injekko.Editor.GraphToolkit, asm: Injekko.Editor}
+      data: 
+    - rid: 3262897087049630224
+      type: {class: UserBlockNodeModelImp, ns: Unity.GraphToolkit.Editor.Implementation,
+        asm: UnityEditor.GraphToolkitModule}
+      data:
+        m_Guid:
+          m_Value0: 9020828660209693389
+          m_Value1: 15515120597552374918
+        m_HashGuid:
+          serializedVersion: 2
+          Hash: cd32763fdf6b307d86a47418fbc750d7
+        m_Version: 2
+        m_Position: {x: 0, y: 0}
+        m_Title: 
+        m_Tooltip: 
+        m_NodePreviewModel:
+          rid: -2
+        m_State: 0
+        m_InputConstantsById:
+          m_KeyList:
+          - __option_FieldName
+          - __option_InstanceReference
+          - Bind Type
+          m_ValueList:
+          - rid: 3262897087049630225
+          - rid: 3262897087049630226
+          - rid: 3262897087049630227
+        m_InputPortInfos:
+          expandedPortsById:
+            m_KeyList: []
+            m_ValueList: 
+        m_OutputPortInfos:
+          expandedPortsById:
+            m_KeyList: []
+            m_ValueList: 
+        m_Collapsed: 0
+        m_CurrentModeIndex: 0
+        m_ElementColor:
+          m_Color: {r: 0, g: 0, b: 0, a: 0}
+          m_HasUserColor: 0
+        m_ContextNodeModel:
+          rid: 3262897087049630222
+        m_Node:
+          rid: 3262897087049630228
+    - rid: 3262897087049630225
+      type: {class: 'Constant`1[[System.String, mscorlib]]', ns: Unity.GraphToolkit.Editor,
+        asm: UnityEditor.GraphToolkitModule}
+      data:
+        m_Value: StringsDb
+    - rid: 3262897087049630226
+      type: {class: 'Constant`1[[UnityEngine.Object, UnityEngine.CoreModule]]', ns: Unity.GraphToolkit.Editor,
+        asm: UnityEditor.GraphToolkitModule}
+      data:
+        m_Value: {fileID: 11400000, guid: 672e48b8d554ffb48a071dd1b4f3133c, type: 2}
+    - rid: 3262897087049630227
+      type: {class: 'Constant`1[[UnityEditor.MonoScript, UnityEditor.CoreModule]]',
+        ns: Unity.GraphToolkit.Editor, asm: UnityEditor.GraphToolkitModule}
+      data:
+        m_Value: {fileID: 11500000, guid: 0f41b516b71cbfb418132bbf3908b4c9, type: 3}
+    - rid: 3262897087049630228
+      type: {class: InstanceBlock, ns: Injekko.Editor.GraphToolkit, asm: Injekko.Editor}
+      data:
+        fieldName: 
+        referenceSlotId: 1eedc40812704f64979b7bc04dd655cd
+        defaultReference: {fileID: 0}
