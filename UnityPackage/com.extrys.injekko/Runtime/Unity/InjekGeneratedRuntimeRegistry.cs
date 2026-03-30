@@ -19,42 +19,6 @@ namespace Injekko.Unity
 			graphPlans[graphId] = applyPlan;
 		}
 
-		public static void RegisterProjectGraphPlan(string graphId, Action<InjekkoProjectAsset, InjekScopeNode> applyPlan)
-		{
-			if (applyPlan == null)
-				return;
-
-			RegisterGraphPlan(graphId, (host, scope) =>
-			{
-				if (host is InjekkoProjectAsset projectAsset)
-					applyPlan(projectAsset, scope);
-			});
-		}
-
-		public static void RegisterSceneGraphPlan(string graphId, Action<SceneScope, InjekScopeNode> applyPlan)
-		{
-			if (applyPlan == null)
-				return;
-
-			RegisterGraphPlan(graphId, (host, scope) =>
-			{
-				if (host is SceneScope sceneScope)
-					applyPlan(sceneScope, scope);
-			});
-		}
-
-		public static void RegisterGameObjectGraphPlan(string graphId, Action<GameObjectScope, InjekScopeNode> applyPlan)
-		{
-			if (applyPlan == null)
-				return;
-
-			RegisterGraphPlan(graphId, (host, scope) =>
-			{
-				if (host is GameObjectScope gameObjectScope)
-					applyPlan(gameObjectScope, scope);
-			});
-		}
-
 		public static void RegisterSceneActivation(Action<SceneScope> activateSceneScope, Action<GameObject> activateHierarchy)
 		{
 			sceneScopeActivator = activateSceneScope;
@@ -72,15 +36,6 @@ namespace Injekko.Unity
 			plan(host, scope);
 			return true;
 		}
-
-		public static bool TryApplyProjectGraphPlan(InjekkoProjectAsset host, InjekScopeNode scope)
-			=> TryApplyGraphPlan(host, scope);
-
-		public static bool TryApplySceneGraphPlan(SceneScope host, InjekScopeNode scope)
-			=> TryApplyGraphPlan(host, scope);
-
-		public static bool TryApplyGameObjectGraphPlan(GameObjectScope host, InjekScopeNode scope)
-			=> TryApplyGraphPlan(host, scope);
 
 		public static bool TryActivateSceneScope(SceneScope sceneScope)
 		{
