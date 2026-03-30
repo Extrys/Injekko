@@ -101,29 +101,29 @@ namespace Injekko.Editor
 			serializedObject.Update();
 			var graphProperty = serializedObject.FindProperty("sceneGraph");
 			if (graphProperty != null)
-				EditorGUILayout.PropertyField(graphProperty, new GUIContent("Scene Graph"));
+			{
+				InjekScopeGraphEditorUtility.DrawSceneGraphSection(
+					graphProperty,
+					sceneScope,
+					() =>
+					{
+						string sceneName = sceneScope.gameObject.scene.IsValid()
+							? sceneScope.gameObject.scene.name
+							: sceneScope.name;
+						var createdGraph = InjekScopeGraphEditorUtility.CreateGraphAsset($"{sceneName}_SceneScopeGraph");
+						if (createdGraph == null)
+							return;
+
+						Undo.RecordObject(sceneScope, "Assign Injek Scene Graph");
+						sceneScope.SetEditorGraph(createdGraph);
+						EditorUtility.SetDirty(sceneScope);
+						if (sceneScope.gameObject.scene.IsValid())
+							EditorSceneManager.MarkSceneDirty(sceneScope.gameObject.scene);
+						AssetDatabase.SaveAssets();
+						InjekkoGraphToolkitBridge.OpenAuthoringGraph(createdGraph);
+					});
+			}
 			serializedObject.ApplyModifiedProperties();
-
-			InjekScopeGraphEditorLayout.DrawHostGraphControls(
-				sceneScope.GraphPlan,
-				() =>
-				{
-					string sceneName = sceneScope.gameObject.scene.IsValid()
-						? sceneScope.gameObject.scene.name
-						: sceneScope.name;
-					var createdGraph = InjekScopeGraphEditorUtility.CreateGraphAsset($"{sceneName}_SceneScopeGraph");
-					if (createdGraph == null)
-						return;
-
-					Undo.RecordObject(sceneScope, "Assign Injek Scene Graph");
-					sceneScope.SetEditorGraph(createdGraph);
-					EditorUtility.SetDirty(sceneScope);
-					if (sceneScope.gameObject.scene.IsValid())
-						EditorSceneManager.MarkSceneDirty(sceneScope.gameObject.scene);
-					AssetDatabase.SaveAssets();
-					InjekkoGraphToolkitBridge.OpenAuthoringGraph(createdGraph);
-				});
-			InjekScopeGraphEditorUtility.DrawReferenceBindings(sceneScope, allowSceneObjects: true);
 			InjekScopeGraphEditorUtility.DrawSceneInjectionGraphSummary(sceneScope);
 		}
 	}
@@ -132,6 +132,7 @@ namespace Injekko.Editor
 	{
 		const string SceneToolsFoldoutKey = "Injekko.SceneScopeEditor.SceneToolsFoldout";
 		static GUIStyle sceneToolsFoldoutStyle;
+		static GUIStyle sceneGraphTitleStyle;
 
 		internal static InjekCompiledScopePlan CreateGraphAsset(string defaultName)
 		{
@@ -149,7 +150,32 @@ namespace Injekko.Editor
 			return AssetDatabase.LoadAssetAtPath<InjekCompiledScopePlan>(path);
 		}
 
+		internal static void DrawSceneGraphSection(SerializedProperty graphProperty, SceneScope sceneScope, Action createAndAssign)
+		{
+			if (graphProperty == null)
+				return;
+
+			EditorGUILayout.Space(2f);
+			using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+			{
+				DrawSceneGraphHeaderRow(graphProperty);
+				if (sceneScope.GraphPlan == null)
+				{
+					EditorGUILayout.Space(4f);
+					EditorGUILayout.HelpBox("Assign or create an Injek scope graph to author bindings visually.", MessageType.Warning);
+					if (GUILayout.Button("Create And Assign Graph"))
+						createAndAssign?.Invoke();
+					return;
+				}
+
+				DrawReferenceBindings(sceneScope, allowSceneObjects: true, drawInsideExistingBox: true);
+			}
+		}
+
 		internal static void DrawReferenceBindings(IInjekGraphReferenceHost host, bool allowSceneObjects)
+			=> DrawReferenceBindings(host, allowSceneObjects, drawInsideExistingBox: false);
+
+		static void DrawReferenceBindings(IInjekGraphReferenceHost host, bool allowSceneObjects, bool drawInsideExistingBox)
 		{
 			if (host?.GraphPlan == null)
 				return;
@@ -158,7 +184,8 @@ namespace Injekko.Editor
 				.Where(static definition => definition.RequiresReferenceSlot && !string.IsNullOrWhiteSpace(definition.ReferenceSlotId))
 				.ToArray();
 
-			EditorGUILayout.Space();
+			if (!drawInsideExistingBox)
+				EditorGUILayout.Space();
 
 			var bindings = host is InjekkoProjectAsset projectAsset
 				? projectAsset.GraphBindings
@@ -166,7 +193,7 @@ namespace Injekko.Editor
 					? sceneScope.GraphBindings
 					: Array.Empty<InjekGraphReferenceBinding>();
 
-			using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+			Action drawContent = () =>
 			{
 				if (definitions.Length == 0)
 				{
@@ -231,6 +258,17 @@ namespace Injekko.Editor
 					if (writableSceneScope.gameObject.scene.IsValid())
 						EditorSceneManager.MarkSceneDirty(writableSceneScope.gameObject.scene);
 				}
+			};
+
+			if (drawInsideExistingBox)
+			{
+				EditorGUILayout.Space(4f);
+				drawContent();
+			}
+			else
+			{
+				using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+					drawContent();
 			}
 		}
 
@@ -346,6 +384,64 @@ namespace Injekko.Editor
 
 			return sceneToolsFoldoutStyle;
 		}
+
+		static GUIStyle GetSceneGraphTitleStyle()
+		{
+			if (sceneGraphTitleStyle != null)
+				return sceneGraphTitleStyle;
+
+			sceneGraphTitleStyle = new GUIStyle(EditorStyles.boldLabel)
+			{
+				fontSize = EditorStyles.label.fontSize + 1
+			};
+
+			return sceneGraphTitleStyle;
+		}
+
+		static void DrawSceneGraphHeaderRow(SerializedProperty graphProperty)
+		{
+			var currentGraph = graphProperty.objectReferenceValue as InjekCompiledScopePlan;
+			Rect rowRect = GUILayoutUtility.GetRect(10f, 32f, GUILayout.ExpandWidth(true));
+			Rect contentRect = new Rect(rowRect.x + 8f, rowRect.y + 3f, rowRect.width - 16f, EditorGUIUtility.singleLineHeight);
+			Rect labelRect = new Rect(contentRect.x, contentRect.y, 88f, contentRect.height);
+			float fieldX = labelRect.xMax + 8f;
+			Rect fieldRect = new Rect(fieldX, contentRect.y, Mathf.Max(0f, contentRect.xMax - fieldX), contentRect.height);
+
+			Color previousColor = GUI.contentColor;
+			GUI.contentColor = EditorGUIUtility.isProSkin
+				? new Color(1f, 1f, 1f, 0.92f)
+				: new Color(1f, 1f, 1f, 0.98f);
+			EditorGUI.LabelField(labelRect, "Scene Graph", GetSceneGraphTitleStyle());
+			GUI.contentColor = previousColor;
+
+			EditorGUI.BeginChangeCheck();
+			var nextGraph = (InjekCompiledScopePlan)EditorGUI.ObjectField(
+				fieldRect,
+				GUIContent.none,
+				currentGraph,
+				typeof(InjekCompiledScopePlan),
+				allowSceneObjects: false);
+			if (EditorGUI.EndChangeCheck())
+				graphProperty.objectReferenceValue = nextGraph;
+
+			if (Event.current.type == EventType.Repaint)
+			{
+				Rect separatorRect = new Rect(contentRect.x, fieldRect.yMax + 5f, contentRect.width, 2f);
+				EditorGUI.DrawRect(separatorRect, GetSceneGraphSeparatorColor(currentGraph != null));
+			}
+		}
+
+		static Color GetSceneGraphSeparatorColor(bool hasGraph)
+		{
+			if (hasGraph)
+				return EditorGUIUtility.isProSkin
+					? new Color(0.20f, 0.47f, 0.62f, 1f)
+					: new Color(0.36f, 0.60f, 0.78f, 1f);
+
+			return EditorGUIUtility.isProSkin
+				? new Color(0.55f, 0.39f, 0.14f, 1f)
+				: new Color(0.80f, 0.58f, 0.24f, 1f);
+		}
 	}
 
 	static class InjekScopeGraphEditorLayout
@@ -355,9 +451,12 @@ namespace Injekko.Editor
 			if (graphAsset == null)
 			{
 				EditorGUILayout.Space();
-				EditorGUILayout.HelpBox("Assign or create an Injek scope graph to author bindings visually.", MessageType.Warning);
-				if (GUILayout.Button("Create And Assign Graph"))
-					createAndAssign?.Invoke();
+				using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+				{
+					EditorGUILayout.HelpBox("Assign or create an Injek scope graph to author bindings visually.", MessageType.Warning);
+					if (GUILayout.Button("Create And Assign Graph"))
+						createAndAssign?.Invoke();
+				}
 			}
 		}
 	}
