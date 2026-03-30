@@ -182,12 +182,17 @@ namespace Injekko.Editor
 			foreach (var definition in definitions)
 			{
 				bool hasLocalOverride = updatedBindings.TryGetValue(definition.ReferenceSlotId, out var localTarget);
-				var effectiveTarget = hasLocalOverride ? localTarget : definition.DefaultReference;
+				bool shouldUseGraphDefaultAsFieldValue = !allowSceneObjects;
+				var effectiveTarget = hasLocalOverride
+					? localTarget
+					: shouldUseGraphDefaultAsFieldValue
+						? definition.DefaultReference
+						: null;
 
 				using (new EditorGUILayout.HorizontalScope())
 				{
 					var nextTarget = EditorGUILayout.ObjectField(
-						BuildReferenceLabel(definition, hasLocalOverride),
+						BuildReferenceLabel(definition, hasLocalOverride, allowSceneObjects),
 						effectiveTarget,
 						definition.GetExpectedReferenceType(),
 						allowSceneObjects);
@@ -293,9 +298,13 @@ namespace Injekko.Editor
 			}
 		}
 
-		static string BuildReferenceLabel(InjekkoBindingAuthoringDefinition definition, bool hasLocalOverride)
+		static string BuildReferenceLabel(InjekkoBindingAuthoringDefinition definition, bool hasLocalOverride, bool allowSceneObjects)
 		{
-			string sourceSuffix = hasLocalOverride ? string.Empty : " (Graph)";
+			string sourceSuffix = hasLocalOverride
+				? string.Empty
+				: allowSceneObjects
+					? string.Empty
+					: " (Graph)";
 			return $"{definition.DisplayName} : {BuildBindingTypeLabel(definition)}{sourceSuffix}";
 		}
 

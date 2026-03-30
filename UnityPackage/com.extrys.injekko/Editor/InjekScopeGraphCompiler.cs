@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using Injekko;
@@ -37,13 +38,19 @@ namespace Injekko.Editor
 			if (sceneScope == null)
 				return;
 
-			sceneScope.SetEditorGraphBindings(BuildReferenceBindings(sceneScope.GraphPlan, sceneScope));
+			var bindings = BuildReferenceBindings(sceneScope.GraphPlan, sceneScope);
+			bool bindingsChanged = !AreBindingsEqual(sceneScope.GraphBindings, bindings);
+			if (bindingsChanged)
+				sceneScope.SetEditorGraphBindings(bindings);
+
 			sceneScope.SetEditorCaches(
 				BuildInjectableCache(sceneScope).ToArray(),
 				BuildSceneScopeCache(sceneScope).ToArray());
 			sceneScope.SetEditorGeneratedSceneInjectionGraph(BuildGeneratedSceneInjectionGraph(sceneScope));
 
 			EditorUtility.SetDirty(sceneScope);
+			if (bindingsChanged && sceneScope.gameObject.scene.IsValid())
+				EditorSceneManager.MarkSceneDirty(sceneScope.gameObject.scene);
 		}
 
 		public static void RefreshProjectAssetBindings(InjekkoProjectAsset projectAsset)
@@ -51,7 +58,10 @@ namespace Injekko.Editor
 			if (projectAsset == null)
 				return;
 
-			projectAsset.SetEditorGraphBindings(BuildReferenceBindings(projectAsset.GraphPlan, projectAsset));
+			var bindings = BuildReferenceBindings(projectAsset.GraphPlan, projectAsset);
+			if (!AreBindingsEqual(projectAsset.GraphBindings, bindings))
+				projectAsset.SetEditorGraphBindings(bindings);
+
 			EditorUtility.SetDirty(projectAsset);
 		}
 
@@ -67,7 +77,7 @@ namespace Injekko.Editor
 
 		static IReadOnlyList<SceneScope> FindLoadedSceneScopes()
 		{
-			return UnityEngine.Object.FindObjectsByType<SceneScope>(FindObjectsInactive.Include, FindObjectsSortMode.None)
+			return UnityEngine.Object.FindObjectsByType<SceneScope>(FindObjectsInactive.Include)
 				.Where(static scope => scope != null && scope.gameObject.scene.IsValid() && scope.gameObject.scene.isLoaded)
 				.OrderBy(static scope => scope.gameObject.scene.path, StringComparer.Ordinal)
 				.ThenBy(static scope => GetHierarchyPath(scope.transform), StringComparer.Ordinal)
@@ -95,7 +105,8 @@ namespace Injekko.Editor
 					continue;
 
 				existingBySlot.TryGetValue(node.ReferenceSlotId, out var target);
-				bindings.Add(CreateReferenceBinding(node.ReferenceSlotId, target));
+				if (target != null)
+					bindings.Add(CreateReferenceBinding(node.ReferenceSlotId, target));
 			}
 
 			return bindings.ToArray();
@@ -114,6 +125,31 @@ namespace Injekko.Editor
 
 		static InjekGraphReferenceBinding CreateReferenceBinding(string slotId, UnityEngine.Object target)
 			=> new(slotId, target);
+
+		static bool AreBindingsEqual(IReadOnlyList<InjekGraphReferenceBinding> current, IReadOnlyList<InjekGraphReferenceBinding> next)
+		{
+			current ??= Array.Empty<InjekGraphReferenceBinding>();
+			next ??= Array.Empty<InjekGraphReferenceBinding>();
+
+			if (current.Count != next.Count)
+				return false;
+
+			for (int index = 0; index < current.Count; index++)
+			{
+				var currentBinding = current[index];
+				var nextBinding = next[index];
+
+				string currentSlotId = currentBinding?.SlotId ?? string.Empty;
+				string nextSlotId = nextBinding?.SlotId ?? string.Empty;
+				if (!string.Equals(currentSlotId, nextSlotId, StringComparison.Ordinal))
+					return false;
+
+				if (!ReferenceEquals(currentBinding?.Target, nextBinding?.Target))
+					return false;
+			}
+
+			return true;
+		}
 
 		static IEnumerable<MonoBehaviour> BuildInjectableCache(SceneScope sceneScope)
 		{

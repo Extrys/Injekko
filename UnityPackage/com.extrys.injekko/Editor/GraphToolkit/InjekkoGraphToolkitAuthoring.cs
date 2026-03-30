@@ -1,8 +1,6 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using UnityEditor;
 using Unity.GraphToolkit.Editor;
 using UnityEngine;
@@ -58,12 +56,6 @@ namespace Injekko.Editor.GraphToolkit
 
 		static void ValidateInstanceDeclaration(GraphLogger infos, BindDeclarationBlockNode[] blocks, InstanceBlock instanceBlock)
 		{
-			if (blocks.Length < 2)
-			{
-				infos.LogError("Instance declarations must be followed by a To block.", instanceBlock);
-				return;
-			}
-
 			if (blocks.Length > 2)
 				infos.LogError("Instance declarations can only contain Instance plus one To block in this phase.", instanceBlock);
 
@@ -75,11 +67,11 @@ namespace Injekko.Editor.GraphToolkit
 				infos.LogError("Instance needs a connected Bind Type input or a MonoScript value on that port.", instanceBlock);
 
 			UnityEngine.Object reference = instanceBlock.GetDefaultReference(sourceType);
-			if (reference == null)
-				infos.LogError("Instance needs an Instance Reference.", instanceBlock);
-
 			if (sourceType != null && reference != null)
 				ValidateReferenceCompatibility(infos, instanceBlock, sourceType, reference, "Instance");
+
+			if (blocks.Length == 1)
+				return;
 
 			if (blocks[1] is not IInjekkoDestinationBlock destinationBlock)
 			{
@@ -100,14 +92,11 @@ namespace Injekko.Editor.GraphToolkit
 			if (implementationType == null)
 				infos.LogError("Type needs a connected Bind Type input or a MonoScript value on that port.", typeBlock);
 
-			if (blocks.Length < 2)
-			{
-				infos.LogError("Type declarations must be followed by a To block.", typeBlock);
-				return;
-			}
-
 			if (blocks.Length > 2)
 				infos.LogError("Type declarations can only contain Type plus one To block in this phase.", typeBlock);
+
+			if (blocks.Length == 1)
+				return;
 
 			if (blocks[1] is not IInjekkoDestinationBlock destinationBlock)
 			{
@@ -218,10 +207,10 @@ namespace Injekko.Editor.GraphToolkit
 		public Type GetServiceType()
 		{
 			BindDeclarationBlockNode[] blocks = GetOrderedBlocks();
-			if (blocks.Length < 2 || blocks[1] is not IInjekkoDestinationBlock destinationBlock)
-				return null;
-
 			Type sourceType = GetSourceOrImplementationType(blocks);
+			if (blocks.Length < 2 || blocks[1] is not IInjekkoDestinationBlock destinationBlock)
+				return sourceType;
+
 			return destinationBlock.GetServiceType(sourceType);
 		}
 
@@ -241,8 +230,9 @@ namespace Injekko.Editor.GraphToolkit
 
 		internal BindDeclarationBlockNode[] GetOrderedBlocks()
 		{
-			return InjekkoContextReflectionUtility.GetContainedBlocks(this)
-				.OrderBy(InjekkoContextReflectionUtility.GetOrderInContext)
+			return BlockNodes
+				.OfType<BindDeclarationBlockNode>()
+				.OrderBy(static block => block.Index)
 				.ToArray();
 		}
 
@@ -474,55 +464,6 @@ namespace Injekko.Editor.GraphToolkit
 			}
 
 			return null;
-		}
-	}
-
-	internal static class InjekkoContextReflectionUtility
-	{
-		static readonly BindingFlags Flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-
-		internal static IEnumerable<BindDeclarationBlockNode> GetContainedBlocks(ContextNode context)
-		{
-			if (context == null)
-				return Array.Empty<BindDeclarationBlockNode>();
-
-			object contained = GetMemberValue(context, "ContainedModels")
-				?? GetMemberValue(context, "Blocks")
-				?? GetMemberValue(context, "ContainedNodes");
-
-			if (contained is not IEnumerable enumerable)
-				return Array.Empty<BindDeclarationBlockNode>();
-
-			var blocks = new List<BindDeclarationBlockNode>();
-			foreach (object item in enumerable)
-			{
-				if (item is BindDeclarationBlockNode block)
-					blocks.Add(block);
-			}
-
-			return blocks;
-		}
-
-		internal static int GetOrderInContext(BindDeclarationBlockNode block)
-		{
-			object value = GetMemberValue(block, "OrderInContext")
-				?? GetMemberValue(block, "Index");
-
-			return value is int index ? index : 0;
-		}
-
-		static object GetMemberValue(object instance, string memberName)
-		{
-			if (instance == null || string.IsNullOrWhiteSpace(memberName))
-				return null;
-
-			Type type = instance.GetType();
-			PropertyInfo property = type.GetProperty(memberName, Flags);
-			if (property != null)
-				return property.GetValue(instance);
-
-			FieldInfo field = type.GetField(memberName, Flags);
-			return field != null ? field.GetValue(instance) : null;
 		}
 	}
 }

@@ -133,9 +133,13 @@ namespace Injekko.Editor.GraphToolkit
 			if (graph == null)
 				return Array.Empty<IInjekkoBindingAuthoringNode>();
 
-			return graph.GetNodes()
+			var directNodes = graph.GetNodes()
 				.OfType<IInjekkoBindingAuthoringNode>()
 				.ToArray();
+			if (directNodes.Length > 0)
+				return directNodes;
+
+			return InjekkoGraphReflectionUtility.GetBindingNodes(graph);
 		}
 
 		public static IReadOnlyList<IInjekkoBindingAuthoringNode> GetBindingNodes(InjekCompiledScopePlan graphPlan)
@@ -146,16 +150,35 @@ namespace Injekko.Editor.GraphToolkit
 			if (graphPlan == null)
 				return Array.Empty<InjekkoBindingAuthoringDefinition>();
 
+			string assetPath = GetAuthoringGraphAssetPath(graphPlan);
+			if (!string.IsNullOrWhiteSpace(assetPath))
+			{
+				var liveDefinitions = GetBindingDefinitions(assetPath);
+				if (liveDefinitions.Count > 0)
+					return liveDefinitions;
+			}
+
 			if (graphPlan.BindingDefinitions.Length > 0)
 				return graphPlan.BindingDefinitions.Select(InjekkoBindingAuthoringDefinition.FromCompiledDefinition).ToArray();
 
-			return GetBindingNodes(graphPlan)
-				.Select(CreateDefinition)
-				.ToArray();
+			return Array.Empty<InjekkoBindingAuthoringDefinition>();
 		}
 
 		public static IReadOnlyList<InjekkoBindingAuthoringDefinition> GetBindingDefinitions(string assetPath)
-			=> GetBindingNodes(assetPath).Select(CreateDefinition).ToArray();
+		{
+			if (string.IsNullOrWhiteSpace(assetPath))
+				return Array.Empty<InjekkoBindingAuthoringDefinition>();
+
+			var graph = GraphDatabase.LoadGraphForImporter<InjekkoAuthoringGraph>(assetPath);
+			if (graph == null)
+				return Array.Empty<InjekkoBindingAuthoringDefinition>();
+
+			var contextualDefinitions = InjekkoGraphReflectionUtility.GetBindingDefinitions(graph);
+			if (contextualDefinitions.Count > 0)
+				return contextualDefinitions;
+
+			return GetBindingNodes(assetPath).Select(CreateDefinition).ToArray();
+		}
 
 		static InjekkoBindingAuthoringDefinition CreateDefinition(IInjekkoBindingAuthoringNode node)
 		{
@@ -199,5 +222,105 @@ namespace Injekko.Editor.GraphToolkit
 
 		static string GetFriendlyTypeName(Type type)
 			=> type == null ? "Unassigned" : type.FullName?.Replace("+", ".") ?? type.Name;
+	}
+
+	internal static class InjekkoGraphReflectionUtility
+	{
+		internal static IReadOnlyList<InjekkoBindingAuthoringDefinition> GetBindingDefinitions(Graph graph)
+		{
+			if (graph == null)
+				return Array.Empty<InjekkoBindingAuthoringDefinition>();
+
+			var contexts = graph.GetNodes()
+				.OfType<BindDeclarationContextNode>()
+				.ToArray();
+			if (contexts.Length == 0)
+				return Array.Empty<InjekkoBindingAuthoringDefinition>();
+
+			var definitions = new List<InjekkoBindingAuthoringDefinition>();
+			foreach (var context in contexts)
+			{
+				var orderedBlocks = context.BlockNodes
+					.OfType<BindDeclarationBlockNode>()
+					.OrderBy(static block => block.Index)
+					.ToArray();
+				if (orderedBlocks.Length == 0)
+					continue;
+
+				var definition = TryCreateDefinitionFromBlocks(context, orderedBlocks);
+				if (definition.HasValue)
+					definitions.Add(definition.Value);
+			}
+
+			return definitions;
+		}
+
+		internal static IReadOnlyList<IInjekkoBindingAuthoringNode> GetBindingNodes(Graph graph)
+		{
+			if (graph == null)
+				return Array.Empty<IInjekkoBindingAuthoringNode>();
+
+			return graph.GetNodes()
+				.OfType<IInjekkoBindingAuthoringNode>()
+				.ToArray();
+		}
+
+		static InjekkoBindingAuthoringDefinition? TryCreateDefinitionFromBlocks(BindDeclarationContextNode context, BindDeclarationBlockNode[] blocks)
+		{
+			if (blocks == null || blocks.Length == 0)
+				return null;
+
+			var first = blocks[0];
+			Type implementationType = null;
+			Type serviceType = null;
+			InjekGraphNodeKind kind;
+			bool requiresReferenceSlot = false;
+			string referenceSlotId = string.Empty;
+			string displayName = string.Empty;
+			UnityEngine.Object defaultReference = null;
+
+			switch (first)
+			{
+				case InstanceBlock instanceBlock:
+				{
+					implementationType = null;
+					serviceType = blocks.Length > 1 && blocks[1] is IInjekkoDestinationBlock destinationBlock
+						? destinationBlock.GetServiceType(instanceBlock.GetValueType())
+						: instanceBlock.GetValueType();
+					kind = InjekGraphNodeKind.BindInstance;
+					requiresReferenceSlot = true;
+					referenceSlotId = instanceBlock.ReferenceSlotId ?? string.Empty;
+					displayName = instanceBlock.FieldName ?? string.Empty;
+					defaultReference = instanceBlock.GetDefaultReference(instanceBlock.GetValueType());
+					break;
+				}
+
+				case TypeBlock typeBlock:
+				{
+					implementationType = typeBlock.GetValueType();
+					serviceType = blocks.Length > 1 && blocks[1] is IInjekkoDestinationBlock destinationBlock
+						? destinationBlock.GetServiceType(implementationType)
+						: implementationType;
+					kind = implementationType != null && serviceType != null && implementationType != serviceType
+						? InjekGraphNodeKind.BindRedirectScoped
+						: InjekGraphNodeKind.BindScoped;
+					displayName = context.DisplayName ?? string.Empty;
+					break;
+				}
+
+				default:
+					return null;
+			}
+
+			displayName = InjekkoGraphToolkitBridge.BuildDisplayName(displayName, kind, serviceType, implementationType, requiresReferenceSlot);
+			return new InjekkoBindingAuthoringDefinition(
+				kind,
+				displayName,
+				referenceSlotId,
+				serviceType,
+				implementationType,
+				requiresReferenceSlot,
+				defaultReference);
+		}
 	}
 }
