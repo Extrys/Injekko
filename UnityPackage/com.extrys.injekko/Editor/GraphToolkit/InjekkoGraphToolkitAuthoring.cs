@@ -105,17 +105,6 @@ namespace Injekko.Editor.GraphToolkit
 		}
 	}
 
-	internal interface IInjekkoBindingAuthoringNode
-	{
-		InjekGraphNodeKind Kind { get; }
-		string ReferenceSlotId { get; }
-		string DisplayName { get; }
-		Type GetServiceType();
-		Type GetImplementationType();
-		bool RequiresReferenceSlot { get; }
-		UnityEngine.Object GetDefaultReference();
-	}
-
 	internal interface IInjekkoTypeAuthoringNode
 	{
 		Type GetValueType();
@@ -157,7 +146,7 @@ namespace Injekko.Editor.GraphToolkit
 
 	[Serializable]
 	[Node("", "Packages/com.extrys.injekko/Editor/Icons/InjekkoBindNodeIcon.png", "Bind Declaration")]
-	internal sealed class BindDeclarationContextNode : ContextNode, IInjekkoBindingAuthoringNode
+	internal sealed class BindDeclarationContextNode : ContextNode
 	{
 		const string k_MutedSubtitleColor = "#88888855";
 		const string k_InferredTypeColor = "#4ec9b055";
@@ -166,57 +155,6 @@ namespace Injekko.Editor.GraphToolkit
 		const string k_ServiceTypeColor = "#ccd9a2";
 		const string k_StalePreviewWarningColor = "#e8c547";
 		static readonly Color k_DefaultDeclarationColor = Color.deepSkyBlue * 0.9f;
-
-		public InjekGraphNodeKind Kind
-		{
-			get
-			{
-				var blocks = GetOrderedBlocks();
-				if (blocks.FirstOrDefault() is InstanceBlock)
-					return InjekGraphNodeKind.BindInstance;
-
-				Type serviceType = GetServiceType();
-				Type implementationType = GetImplementationType();
-				if (serviceType == null || implementationType == null)
-					return InjekGraphNodeKind.BindScoped;
-
-				return serviceType == implementationType
-					? InjekGraphNodeKind.BindScoped
-					: InjekGraphNodeKind.BindRedirectScoped;
-			}
-		}
-
-		public string ReferenceSlotId
-			=> GetSourceBlock()?.ReferenceSlotId ?? string.Empty;
-
-		public string DisplayName
-			=> GetSourceBlock()?.FieldName ?? string.Empty;
-
-		public bool RequiresReferenceSlot => GetSourceBlock() != null;
-
-		public Type GetServiceType()
-		{
-			BindDeclarationBlockNode[] blocks = GetOrderedBlocks();
-			Type sourceType = GetSourceOrImplementationType(blocks);
-			if (blocks.Length < 2 || blocks[1] is not IInjekkoDestinationBlock destinationBlock)
-				return sourceType;
-
-			return destinationBlock.GetServiceType(sourceType);
-		}
-
-		public Type GetImplementationType()
-		{
-			BindDeclarationBlockNode[] blocks = GetOrderedBlocks();
-			return blocks.FirstOrDefault() is TypeBlock typeBlock
-				? typeBlock.GetValueType()
-				: null;
-		}
-
-		public UnityEngine.Object GetDefaultReference()
-		{
-			Type sourceType = GetSourceOrImplementationType(GetOrderedBlocks());
-			return GetSourceBlock()?.GetDefaultReference(sourceType);
-		}
 
 		internal BindDeclarationBlockNode[] GetOrderedBlocks()
 		{

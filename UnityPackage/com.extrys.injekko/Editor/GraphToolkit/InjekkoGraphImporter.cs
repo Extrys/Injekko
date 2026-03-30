@@ -24,7 +24,7 @@ namespace Injekko.Editor.GraphToolkit
 			var compiledPlan = ScriptableObject.CreateInstance<InjekCompiledScopePlan>();
 			string graphId = AssetDatabase.AssetPathToGUID(ctx.assetPath);
 			string graphName = Path.GetFileNameWithoutExtension(ctx.assetPath);
-			var compiledDefinitions = InjekkoGraphToolkitBridge.GetBindingDefinitions(ctx.assetPath)
+			var compiledDefinitions = InjekkoGraphToolkitBridge.LowerBindingDefinitionsForImport(ctx.assetPath)
 				.Select(static definition => definition.ToCompiledDefinition())
 				.ToArray();
 			compiledPlan.SetImportedData(graphId, graphName, compiledDefinitions);

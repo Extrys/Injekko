@@ -403,12 +403,7 @@ namespace Injekko.Editor
 		}
 
 		static string BuildBindingTypeLabel(InjekkoBindingAuthoringDefinition definition)
-		{
-			if (definition.Kind == InjekGraphNodeKind.CustomInstaller)
-				return nameof(InjekInstallerAsset);
-
-			return BuildTypeLabel(definition.ServiceType);
-		}
+			=> BuildTypeLabel(definition.ServiceType);
 
 		static string BuildTypeLabel(InjekGraphTypeReference typeReference)
 		{

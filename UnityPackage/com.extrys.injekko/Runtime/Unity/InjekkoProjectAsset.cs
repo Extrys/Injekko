@@ -2,7 +2,6 @@ using UnityEngine;
 
 namespace Injekko.Unity
 {
-	[CreateAssetMenu(menuName = "Injekko/Project Asset", fileName = "InjekkoProjectAsset")]
 	public class InjekkoProjectAsset : ScriptableObject, IInjekGraphReferenceHost
 	{
 		[SerializeField] string projectName = "InjekkoProject";
