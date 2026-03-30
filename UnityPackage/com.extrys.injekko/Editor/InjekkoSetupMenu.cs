@@ -4,6 +4,8 @@ using System.Linq;
 using System.Reflection;
 using UnityEditor;
 using UnityEngine;
+using Injekko;
+using Injekko.Unity;
 
 namespace Injekko.Editor
 {
@@ -87,6 +89,16 @@ namespace Injekko.Editor
 				"OK");
 		}
 
+		[MenuItem("Tools/Injekko/Compile Graph Plans")]
+		public static void CompileGraphPlans()
+		{
+			InjekScopeGraphCompiler.CompileAll();
+			EditorUtility.DisplayDialog(
+				"Injekko Graph Plans",
+				$"Graph plans compiled to {InjekScopeGraphCompiler.GeneratedSourcePath}",
+				"OK");
+		}
+
 		static string ValidateAnalyzerPresence()
 		{
 			PluginImporter importer = AssetImporter.GetAtPath(AnalyzerAssetPath) as PluginImporter;
@@ -109,6 +121,34 @@ namespace Injekko.Editor
 			string[] projectAssets = AssetDatabase.FindAssets("t:InjekkoProjectAsset");
 			if (projectAssets.Length == 0)
 				return "No InjekkoProjectAsset found. Create one and place it under a Resources folder as Resources/InjekkoProjectAsset.asset.";
+
+			var projectAsset = AssetDatabase.LoadAssetAtPath<InjekkoProjectAsset>(AssetDatabase.GUIDToAssetPath(projectAssets[0]));
+			if (projectAsset != null && projectAsset.GraphPlan == null)
+				return "InjekkoProjectAsset is missing its ProjectScope graph. Assign a .injekgraph asset to drive project bindings.";
+
+			return ValidateLoadedScenesHaveSceneScope();
+		}
+
+		static string ValidateLoadedScenesHaveSceneScope()
+		{
+			for (int sceneIndex = 0; sceneIndex < UnityEditor.SceneManagement.EditorSceneManager.sceneCount; sceneIndex++)
+			{
+				var scene = UnityEditor.SceneManagement.EditorSceneManager.GetSceneAt(sceneIndex);
+				if (!scene.IsValid() || !scene.isLoaded)
+					continue;
+
+				bool hasSceneScope = scene.GetRootGameObjects()
+					.SelectMany(static root => root.GetComponentsInChildren<SceneScope>(true))
+					.Any();
+				if (!hasSceneScope)
+					return $"Loaded scene '{scene.name}' has no SceneScope. Injekko's main-path workflow now expects one SceneScope per gameplay scene.";
+
+				var sceneScope = scene.GetRootGameObjects()
+					.SelectMany(static root => root.GetComponentsInChildren<SceneScope>(true))
+					.FirstOrDefault();
+				if (sceneScope != null && sceneScope.GraphPlan == null)
+					return $"Scene '{scene.name}' has a SceneScope but no scene graph assigned.";
+			}
 
 			return null;
 		}

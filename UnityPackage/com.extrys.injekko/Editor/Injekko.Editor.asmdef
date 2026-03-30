@@ -2,7 +2,9 @@
   "name": "Injekko.Editor",
   "rootNamespace": "Injekko.Editor",
   "references": [
-    "Injekko.Runtime"
+    "Injekko.Runtime",
+    "Unity.GraphToolkit.Editor",
+    "Unity.GraphToolkit.Common.Editor"
   ],
   "includePlatforms": [
     "Editor"

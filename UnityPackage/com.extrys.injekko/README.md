@@ -3,7 +3,7 @@
 This is the first Unity-first package scaffold for Injekko. It already contains:
 
 - `Runtime/`: attributes, bindings, scopes, activation and Unity integration.
-- `Editor/`: setup validation and the first graph report tooling hooks.
+- `Editor/`: setup validation, graph-plan compilation and graph authoring hooks.
 - `Analyzers/`: the built `InjekkoGen.dll` source generator.
 
 ## Add It To A Unity Project
@@ -35,20 +35,27 @@ Create an `InjekkoProjectAsset` and place it at:
 
 - `Assets/Resources/InjekkoProjectAsset.asset`
 
-That asset is loaded automatically before scene load and becomes the project root for scope setup.
+That asset is loaded automatically before scene load and becomes the project root for scope setup. Assign an `.injekgraph` asset to it to define `ProjectScope` bindings.
 
-If a scene needs scene-specific bindings, add a `SceneScope` component somewhere in that scene and assign its installers there.
+Each gameplay scene should also contain one `SceneScope` component with its own `.injekgraph` asset.
 
 ## First Runtime Model
 
 - Project scope is created automatically from `InjekkoProjectAsset`.
-- Scene scopes are created automatically for loaded scenes.
-- If a `SceneScope` exists in that scene, its installers are applied to that scene scope.
+- Scene scopes are created automatically for loaded scenes, but the main-path workflow expects one explicit `SceneScope` per gameplay scene.
+- `ProjectScope` and `SceneScope` bindings are now driven by graph assets that compile to generated binding plans.
 - `GameObjectScope` creates explicit subscopes on `GameObject`s when you need them.
 - `GetInjekScope()` on `GameObject` and `Component` resolves through the scope registry instead of repeated `GetComponent` searches.
-- Scene `MonoBehaviour`s with `[Injek]` are auto-activated by generated code after scene load, without runtime reflection.
+- Scene `MonoBehaviour`s with `[Injek]` are activated from the `SceneScope` cache in the main path, without runtime reflection.
 - Prefab-backed `Fucktory` creation is now the recommended path for Unity gameplay objects.
 - `AddComponent` creation is still supported, but it is the secondary path and does not carry the same strong lifecycle guarantees.
+
+## Graph-Driven Authoring
+
+- `.injekgraph` is the reusable authoring asset for `ProjectScope` and `SceneScope`, and imports into a draggable compiled runtime plan.
+- Graph nodes compile to generated binding-plan code in `Assets/Injekko/Generated/InjekkoGraphPlans.Generated.cs`.
+- `SceneScope` stores concrete scene/object references for graph slots, Timeline-style.
+- `InjekInstallerAsset` still exists as an escape hatch through the `CustomInstaller` graph node.
 
 ## Prefab-Backed Fucktories
 
@@ -69,10 +76,11 @@ When that factory creates an instance, Injekko will:
 The package currently includes:
 
 - `Tools/Injekko/Validate Setup`
+- `Tools/Injekko/Compile Graph Plans`
 - `Tools/Injekko/Write Graph Report`
 
 The graph report writes to:
 
 - `Assets/Injekko/Generated/InjekkoGraphReport.txt`
 
-That gives us a first editor-visible artifact from generated dependency metadata, ready to evolve later into Graph Toolkit views.
+That gives us a first editor-visible artifact from generated dependency metadata, alongside graph-plan compilation and scene cache generation for the graph-driven workflow.

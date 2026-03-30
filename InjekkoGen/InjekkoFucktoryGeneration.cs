@@ -170,7 +170,7 @@ namespace Injekko.Codegen
 			sourceBuilder.AppendLine($"				var prefabSource = prefab ?? (scope != null && scope.TryResolvePrefab<{targetTypeName}>(out var boundPrefab) ? boundPrefab : null);");
 			sourceBuilder.AppendLine("				if (prefabSource != null)");
 			sourceBuilder.AppendLine("				{");
-			sourceBuilder.AppendLine("					var instance = global::Injekko.Unity.InjekHierarchyActivator.InstantiatePrefab(prefabSource, scope, global::Injekko.Unity.InjekkoSceneActivationBootstrap.ActivateHierarchy);");
+			sourceBuilder.AppendLine("					var instance = global::Injekko.Unity.InjekHierarchyActivator.InstantiatePrefab(prefabSource, scope, global::Injekko.Unity.InjekGeneratedRuntimeRegistry.ActivateHierarchy);");
 			if (plan.InjekMethod != null)
 			{
 				var resolverTypeName = InjekkoGeneratorNaming.GetFullyQualifiedResolverName(plan.TargetType);

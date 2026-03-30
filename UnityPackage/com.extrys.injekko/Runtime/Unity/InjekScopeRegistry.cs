@@ -27,7 +27,7 @@ namespace Injekko.Unity
 
 			projectScope = new InjekScopeNode(projectAsset != null ? projectAsset.ProjectName : "InjekkoProject", InjekScopeKind.Project, projectAsset);
 			if (projectAsset != null)
-				projectScope.Install(projectAsset.GetProjectInstallers());
+				InjekGeneratedRuntimeRegistry.TryApplyProjectGraphPlan(projectAsset, projectScope);
 			return projectScope;
 		}
 
@@ -36,7 +36,6 @@ namespace Injekko.Unity
 			ulong sceneKey = GetSceneKey(scene);
 			SceneScopeEntry entry = GetOrCreateSceneEntry(scene, sceneKey);
 			TryAutoRegisterSceneScope(scene, entry);
-			EnsureSceneInstallers(entry);
 			return entry.Scope;
 		}
 
@@ -54,8 +53,16 @@ namespace Injekko.Unity
 
 			entry.SceneScopeComponent = sceneScope;
 			sceneScope.AssignScope(entry.Scope);
-			EnsureSceneInstallers(entry);
 			return entry.Scope;
+		}
+
+		public static bool TryGetSceneScope(Scene scene, out SceneScope sceneScope)
+		{
+			ulong sceneKey = GetSceneKey(scene);
+			SceneScopeEntry entry = GetOrCreateSceneEntry(scene, sceneKey);
+			TryAutoRegisterSceneScope(scene, entry);
+			sceneScope = entry.SceneScopeComponent;
+			return sceneScope != null;
 		}
 
 		public static InjekScopeNode EnsureGameObjectScope(GameObject gameObject, IEnumerable<InjekInstallerAsset> installers = null)
@@ -144,6 +151,27 @@ namespace Injekko.Unity
 				anchoredScopes.Remove(gameObject);
 		}
 
+		public static void RegisterCachedSceneGameObjectScopes(SceneScope sceneScope)
+		{
+			if (sceneScope == null)
+				throw new ArgumentNullException(nameof(sceneScope));
+			if (sceneScope.ScopeNode == null)
+				throw new InjekException("SceneScope must be registered before cached GameObject scopes can be applied.");
+
+			foreach (var cacheEntry in sceneScope.CachedGameObjectScopes)
+			{
+				if (cacheEntry?.Scope == null)
+					continue;
+
+				IInjekScope parentScope = sceneScope.ScopeNode;
+				if (cacheEntry.ParentScope != null && anchoredScopes.TryGetValue(cacheEntry.ParentScope.gameObject, out var parentNode))
+					parentScope = parentNode;
+
+				InjekScopeNode scopeNode = EnsureGameObjectScope(cacheEntry.Scope.gameObject, parentScope, cacheEntry.Scope.Installers);
+				cacheEntry.Scope.AssignScope(scopeNode);
+			}
+		}
+
 		static InjekScopeNode ResolveParentScope(GameObject gameObject)
 		{
 			Transform current = gameObject.transform.parent;
@@ -194,15 +222,6 @@ namespace Injekko.Unity
 			foundSceneScope.AssignScope(entry.Scope);
 		}
 
-		static void EnsureSceneInstallers(SceneScopeEntry entry)
-		{
-			if (entry.SceneScopeComponent == null || entry.HasInstalledSceneInstallers)
-				return;
-
-			entry.Scope.Install(entry.SceneScopeComponent.Installers);
-			entry.HasInstalledSceneInstallers = true;
-		}
-
 		static ulong GetSceneKey(Scene scene) => scene.handle.GetRawData();
 
 		sealed class SceneScopeEntry
@@ -214,7 +233,6 @@ namespace Injekko.Unity
 
 			public InjekScopeNode Scope { get; }
 			public SceneScope SceneScopeComponent { get; set; }
-			public bool HasInstalledSceneInstallers { get; set; }
 			public bool HasScannedForSceneScope { get; set; }
 		}
 	}

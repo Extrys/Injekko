@@ -59,6 +59,7 @@ namespace Injekko.Codegen
 			sourceBuilder.AppendLine("\t\t[global::UnityEngine.RuntimeInitializeOnLoadMethod(global::UnityEngine.RuntimeInitializeLoadType.BeforeSceneLoad)]");
 			sourceBuilder.AppendLine("\t\tstatic void Register()");
 			sourceBuilder.AppendLine("\t\t{");
+			sourceBuilder.AppendLine("\t\t\tglobal::Injekko.Unity.InjekGeneratedRuntimeRegistry.RegisterSceneActivation(ActivateSceneScope, ActivateHierarchy);");
 			sourceBuilder.AppendLine("\t\t\tglobal::UnityEngine.SceneManagement.SceneManager.sceneLoaded -= OnSceneLoaded;");
 			sourceBuilder.AppendLine("\t\t\tglobal::UnityEngine.SceneManagement.SceneManager.sceneLoaded += OnSceneLoaded;");
 			sourceBuilder.AppendLine("\t\t}");
@@ -66,12 +67,24 @@ namespace Injekko.Codegen
 			sourceBuilder.AppendLine("\t\t[global::UnityEngine.RuntimeInitializeOnLoadMethod(global::UnityEngine.RuntimeInitializeLoadType.AfterSceneLoad)]");
 			sourceBuilder.AppendLine("\t\tstatic void ActivateInitialScene()");
 			sourceBuilder.AppendLine("\t\t{");
-			sourceBuilder.AppendLine("\t\t\tActivateScene(global::UnityEngine.SceneManagement.SceneManager.GetActiveScene());");
+			sourceBuilder.AppendLine("\t\t\tvar activeScene = global::UnityEngine.SceneManagement.SceneManager.GetActiveScene();");
+			sourceBuilder.AppendLine("\t\t\tif (global::Injekko.Unity.InjekScopeRegistry.TryGetSceneScope(activeScene, out var explicitSceneScope) && explicitSceneScope != null && explicitSceneScope.IsBootstrapComplete)");
+			sourceBuilder.AppendLine("\t\t\t\treturn;");
+			sourceBuilder.AppendLine("\t\t\tActivateScene(activeScene);");
 			sourceBuilder.AppendLine("\t\t}");
 			sourceBuilder.AppendLine();
 			sourceBuilder.AppendLine("\t\tstatic void OnSceneLoaded(global::UnityEngine.SceneManagement.Scene scene, global::UnityEngine.SceneManagement.LoadSceneMode mode)");
 			sourceBuilder.AppendLine("\t\t{");
+			sourceBuilder.AppendLine("\t\t\tif (global::Injekko.Unity.InjekScopeRegistry.TryGetSceneScope(scene, out var explicitSceneScope) && explicitSceneScope != null && explicitSceneScope.IsBootstrapComplete)");
+			sourceBuilder.AppendLine("\t\t\t\treturn;");
 			sourceBuilder.AppendLine("\t\t\tActivateScene(scene);");
+			sourceBuilder.AppendLine("\t\t}");
+			sourceBuilder.AppendLine();
+			sourceBuilder.AppendLine("\t\tinternal static void ActivateSceneScope(global::Injekko.Unity.SceneScope sceneScope)");
+			sourceBuilder.AppendLine("\t\t{");
+			sourceBuilder.AppendLine("\t\t\tif (sceneScope == null)");
+			sourceBuilder.AppendLine("\t\t\t\tthrow new global::System.ArgumentNullException(nameof(sceneScope));");
+			AppendSceneScopeActivationLoops(sourceBuilder, context, compilation, methods, fucktories);
 			sourceBuilder.AppendLine("\t\t}");
 			sourceBuilder.AppendLine();
 			sourceBuilder.AppendLine("\t\tinternal static void ActivateHierarchy(global::UnityEngine.GameObject root)");
@@ -106,6 +119,23 @@ namespace Injekko.Codegen
 				sourceBuilder.AppendLine($"{indent}\t\tcontinue;");
 				sourceBuilder.AppendLine($"{indent}\tglobal::{InjekkoGeneratorNaming.TrimGlobal(componentTypeName)}_Rizolver.Activate(instance, global::Injekko.Unity.InjekScopeRegistry.GetScope(instance));");
 				sourceBuilder.AppendLine($"{indent}}}");
+			}
+		}
+
+		static void AppendSceneScopeActivationLoops(StringBuilder sourceBuilder, SourceProductionContext context, Compilation compilation, System.Collections.Generic.List<IMethodSymbol> methods, System.Collections.Generic.List<FucktoryTargetModel> fucktories)
+		{
+			foreach (var method in methods)
+			{
+				if (!ShouldGenerateActivationForMethod(context, compilation, method, fucktories))
+					continue;
+
+				string componentTypeName = method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+				sourceBuilder.AppendLine($"\t\t\tforeach (var cachedComponent in sceneScope.CachedInjectables)");
+				sourceBuilder.AppendLine("\t\t\t{");
+				sourceBuilder.AppendLine($"\t\t\t\tif (cachedComponent is not {componentTypeName} instance)");
+				sourceBuilder.AppendLine("\t\t\t\t\tcontinue;");
+				sourceBuilder.AppendLine($"\t\t\t\tglobal::{InjekkoGeneratorNaming.TrimGlobal(componentTypeName)}_Rizolver.Activate(instance, global::Injekko.Unity.InjekScopeRegistry.GetScope(instance));");
+				sourceBuilder.AppendLine("\t\t\t}");
 			}
 		}
 

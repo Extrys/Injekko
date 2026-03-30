@@ -3,7 +3,7 @@ using UnityEngine;
 namespace Injekko.Unity
 {
 	[DisallowMultipleComponent]
-	public sealed class GameObjectScope : MonoBehaviour
+	public sealed class GameObjectScope : MonoBehaviour, IInjekScopeHost
 	{
 		[SerializeField] InjekInstallerAsset[] installers = null;
 
