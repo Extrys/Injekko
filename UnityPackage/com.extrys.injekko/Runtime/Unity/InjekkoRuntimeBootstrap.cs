@@ -5,6 +5,8 @@ namespace Injekko.Unity
 {
 	public static class InjekkoRuntimeBootstrap
 	{
+		const string ProjectResourceName = "InjekkoProjectAsset";
+
 		static bool isInitialized;
 		static InjekkoProjectAsset configuredProjectAsset;
 
@@ -36,7 +38,14 @@ namespace Injekko.Unity
 				return;
 
 			if (configuredProjectAsset == null)
-				configuredProjectAsset = Resources.Load<InjekkoProjectAsset>("InjekkoProjectAsset");
+			{
+				var directProjectGraph = Resources.Load<InjekCompiledScopePlan>(ProjectResourceName);
+				if (directProjectGraph != null)
+					configuredProjectAsset = InjekkoProjectAsset.CreateRuntimeProjectAsset(directProjectGraph, directProjectGraph.name);
+			}
+
+			if (configuredProjectAsset == null)
+				configuredProjectAsset = Resources.Load<InjekkoProjectAsset>(ProjectResourceName);
 
 			if (configuredProjectAsset == null)
 				configuredProjectAsset = ScriptableObject.CreateInstance<InjekkoProjectAsset>();

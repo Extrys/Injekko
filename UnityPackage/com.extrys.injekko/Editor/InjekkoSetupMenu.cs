@@ -14,6 +14,7 @@ namespace Injekko.Editor
 		const string AnalyzerAssetPath = "Packages/com.extrys.injekko/Analyzers/InjekkoGen.dll";
 		const string AnalyzerLabel = "RoslynAnalyzer";
 		const string ReportOutputPath = "Assets/Injekko/Generated/InjekkoGraphReport.txt";
+		const string ProjectResourceName = "InjekkoProjectAsset";
 
 		[MenuItem("Tools/Injekko/Validate Setup")]
 		public static void ValidateSetup()
@@ -119,14 +120,37 @@ namespace Injekko.Editor
 		static string ValidateProjectAsset()
 		{
 			string[] projectAssets = AssetDatabase.FindAssets("t:InjekkoProjectAsset");
-			if (projectAssets.Length == 0)
-				return "No InjekkoProjectAsset found. Create one and place it under a Resources folder as Resources/InjekkoProjectAsset.asset.";
+			var directProjectGraph = FindDirectProjectGraph();
+			if (projectAssets.Length == 0 && directProjectGraph == null)
+				return "No project bootstrap graph found. Create Resources/InjekkoProjectAsset.injekgraph, or use the legacy Resources/InjekkoProjectAsset.asset wrapper.";
 
-			var projectAsset = AssetDatabase.LoadAssetAtPath<InjekkoProjectAsset>(AssetDatabase.GUIDToAssetPath(projectAssets[0]));
-			if (projectAsset != null && projectAsset.GraphPlan == null)
+			var projectAsset = projectAssets.Length > 0
+				? AssetDatabase.LoadAssetAtPath<InjekkoProjectAsset>(AssetDatabase.GUIDToAssetPath(projectAssets[0]))
+				: null;
+			if (projectAsset != null && projectAsset.GraphPlan == null && directProjectGraph == null)
 				return "InjekkoProjectAsset is missing its ProjectScope graph. Assign a .injekgraph asset to drive project bindings.";
 
 			return ValidateLoadedScenesHaveSceneScope();
+		}
+
+		static InjekCompiledScopePlan FindDirectProjectGraph()
+		{
+			foreach (string guid in AssetDatabase.FindAssets($"t:{nameof(InjekCompiledScopePlan)} {ProjectResourceName}"))
+			{
+				string path = AssetDatabase.GUIDToAssetPath(guid);
+				if (string.IsNullOrWhiteSpace(path))
+					continue;
+				if (!path.Contains("/Resources/", StringComparison.OrdinalIgnoreCase) && !path.Contains("\\Resources\\", StringComparison.OrdinalIgnoreCase))
+					continue;
+				if (!string.Equals(Path.GetFileNameWithoutExtension(path), ProjectResourceName, StringComparison.Ordinal))
+					continue;
+
+				var graph = AssetDatabase.LoadAssetAtPath<InjekCompiledScopePlan>(path);
+				if (graph != null)
+					return graph;
+			}
+
+			return null;
 		}
 
 		static string ValidateLoadedScenesHaveSceneScope()

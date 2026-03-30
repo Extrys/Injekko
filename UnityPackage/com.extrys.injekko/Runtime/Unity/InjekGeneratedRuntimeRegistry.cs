@@ -9,6 +9,7 @@ namespace Injekko.Unity
 	{
 		static readonly Dictionary<string, Action<InjekkoProjectAsset, InjekScopeNode>> projectGraphPlans = new(StringComparer.Ordinal);
 		static readonly Dictionary<string, Action<SceneScope, InjekScopeNode>> sceneGraphPlans = new(StringComparer.Ordinal);
+		static readonly Dictionary<string, Action<GameObjectScope, InjekScopeNode>> gameObjectGraphPlans = new(StringComparer.Ordinal);
 		static Action<SceneScope> sceneScopeActivator;
 		static Action<GameObject> hierarchyActivator;
 
@@ -26,6 +27,14 @@ namespace Injekko.Unity
 				return;
 
 			sceneGraphPlans[graphId] = applyPlan;
+		}
+
+		public static void RegisterGameObjectGraphPlan(string graphId, Action<GameObjectScope, InjekScopeNode> applyPlan)
+		{
+			if (string.IsNullOrWhiteSpace(graphId) || applyPlan == null)
+				return;
+
+			gameObjectGraphPlans[graphId] = applyPlan;
 		}
 
 		public static void RegisterSceneActivation(Action<SceneScope> activateSceneScope, Action<GameObject> activateHierarchy)
@@ -55,6 +64,18 @@ namespace Injekko.Unity
 				return false;
 
 			plan(sceneScope, scope);
+			return true;
+		}
+
+		public static bool TryApplyGameObjectGraphPlan(GameObjectScope gameObjectScope, InjekScopeNode scope)
+		{
+			if (gameObjectScope == null || scope == null)
+				return false;
+
+			if (!gameObjectGraphPlans.TryGetValue(gameObjectScope.GraphId, out var plan))
+				return false;
+
+			plan(gameObjectScope, scope);
 			return true;
 		}
 

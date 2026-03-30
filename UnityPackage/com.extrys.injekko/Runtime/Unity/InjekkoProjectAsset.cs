@@ -46,5 +46,15 @@ namespace Injekko.Unity
 		{
 			projectBindings = bindings;
 		}
+
+		internal static InjekkoProjectAsset CreateRuntimeProjectAsset(InjekCompiledScopePlan graphAsset, string runtimeProjectName = "InjekkoProject")
+		{
+			var runtimeAsset = CreateInstance<InjekkoProjectAsset>();
+			runtimeAsset.hideFlags = HideFlags.HideAndDontSave;
+			runtimeAsset.projectName = string.IsNullOrWhiteSpace(runtimeProjectName) ? "InjekkoProject" : runtimeProjectName;
+			runtimeAsset.projectGraph = graphAsset;
+			runtimeAsset.projectBindings = System.Array.Empty<InjekGraphReferenceBinding>();
+			return runtimeAsset;
+		}
 	}
 }

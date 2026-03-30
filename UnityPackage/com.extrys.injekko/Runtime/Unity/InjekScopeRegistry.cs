@@ -169,6 +169,7 @@ namespace Injekko.Unity
 
 				InjekScopeNode scopeNode = EnsureGameObjectScope(cacheEntry.Scope.gameObject, parentScope, cacheEntry.Scope.Installers);
 				cacheEntry.Scope.AssignScope(scopeNode);
+				InjekGeneratedRuntimeRegistry.TryApplyGameObjectGraphPlan(cacheEntry.Scope, scopeNode);
 			}
 		}
 

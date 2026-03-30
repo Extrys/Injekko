@@ -31,17 +31,23 @@ You can then run `Tools/Injekko/Validate Setup` inside Unity to verify the packa
 
 ## Project Bootstrap
 
-Create an `InjekkoProjectAsset` and place it at:
+Create your project graph directly at:
+
+- `Assets/Resources/InjekkoProjectAsset.injekgraph`
+
+That graph is loaded automatically before scene load and becomes the project root for scope setup. Because project graphs never need scene references, their asset references live directly on the graph itself.
+
+Legacy fallback:
 
 - `Assets/Resources/InjekkoProjectAsset.asset`
 
-That asset is loaded automatically before scene load and becomes the project root for scope setup. Assign an `.injekgraph` asset to it to define `ProjectScope` bindings.
+The wrapper asset still works, but the direct `.injekgraph` path is now the seamless preferred workflow for project scope.
 
 Each gameplay scene should also contain one `SceneScope` component with its own `.injekgraph` asset.
 
 ## First Runtime Model
 
-- Project scope is created automatically from `InjekkoProjectAsset`.
+- Project scope is created automatically from `Resources/InjekkoProjectAsset`, preferring the direct `.injekgraph` workflow.
 - Scene scopes are created automatically for loaded scenes, but the main-path workflow expects one explicit `SceneScope` per gameplay scene.
 - `ProjectScope` and `SceneScope` bindings are now driven by graph assets that compile to generated binding plans.
 - `GameObjectScope` creates explicit subscopes on `GameObject`s when you need them.
