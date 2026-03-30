@@ -56,6 +56,8 @@ namespace Injekko.Editor.GraphToolkit
 
 		static void ValidateInstanceDeclaration(GraphLogger infos, BindDeclarationBlockNode[] blocks, InstanceBlock instanceBlock)
 		{
+			instanceBlock.RefreshDynamicReferenceOptionType();
+
 			if (blocks.Length > 2)
 				infos.LogError("Instance declarations can only contain Instance plus one To block in this phase.", instanceBlock);
 
@@ -64,7 +66,7 @@ namespace Injekko.Editor.GraphToolkit
 
 			Type sourceType = instanceBlock.GetValueType();
 			if (sourceType == null)
-				infos.LogError("Instance needs a connected Bind Type input or a MonoScript value on that port.", instanceBlock);
+				infos.LogError("Instance needs a Bind Type, unless its reference is an inferable ScriptableObject.", instanceBlock);
 
 			UnityEngine.Object reference = instanceBlock.GetDefaultReference(sourceType);
 			if (sourceType != null && reference != null)
@@ -359,6 +361,7 @@ namespace Injekko.Editor.GraphToolkit
 	internal sealed class InstanceBlock : BindDeclarationBlockNode, IInjekkoReferenceSourceBlock, IInjekkoTypeAuthoringNode
 	{
 		const string k_FieldNameOptionName = "FieldName";
+		const string k_BindTypePortName = "Bind Type";
 		const string k_ReferenceOptionName = "InstanceReference";
 
 		[SerializeField, HideInInspector] string fieldName = string.Empty;
@@ -385,19 +388,60 @@ namespace Injekko.Editor.GraphToolkit
 				.WithDefaultValue(fieldName)
 				.Delayed();
 
-			context.AddOption<UnityEngine.Object>(k_ReferenceOptionName)
+			Type referenceOptionType = GetReferenceFieldType();
+			context.AddOption(k_ReferenceOptionName, referenceOptionType)
 				.WithDisplayName("Instance Reference")
-				.WithDefaultValue(defaultReference);
+				.WithDefaultValue(InjekkoNodeOptionUtility.NormalizeReferenceForType(defaultReference, referenceOptionType));
 		}
 
 		protected override void OnDefinePorts(IPortDefinitionContext context)
 		{
-			context.AddInputPort<MonoScript>("Bind Type").Build();
+			context.AddInputPort<MonoScript>(k_BindTypePortName).Build();
 		}
 
 		public Type GetValueType()
 		{
-			var typePort = GetInputPortByName("Bind Type");
+			Type explicitType = GetExplicitValueType();
+			if (explicitType != null)
+				return explicitType;
+
+			return GetInferableReferenceType();
+		}
+
+		public UnityEngine.Object GetDefaultReference(Type expectedType)
+		{
+			if (InjekkoNodeOptionUtility.TryGetOptionObjectValue(this, k_ReferenceOptionName, out UnityEngine.Object configuredReference))
+				return InjekkoNodeOptionUtility.NormalizeReferenceForType(configuredReference, expectedType ?? GetInferableReferenceType());
+
+			return InjekkoNodeOptionUtility.NormalizeReferenceForType(defaultReference, expectedType ?? GetInferableReferenceType());
+		}
+
+		internal void RefreshDynamicReferenceOptionType()
+		{
+			var referenceOption = GetNodeOptionByName(k_ReferenceOptionName);
+			Type expectedType = GetReferenceFieldType();
+			if (referenceOption != null && referenceOption.DataType == expectedType)
+				return;
+
+			defaultReference = GetDefaultReference(expectedType);
+			DefineNode();
+		}
+
+		Type GetReferenceFieldType()
+		{
+			Type bindType = GetExplicitValueType();
+			if (bindType == null)
+				return typeof(UnityEngine.Object);
+
+			if (typeof(UnityEngine.Object).IsAssignableFrom(bindType))
+				return bindType;
+
+			return typeof(UnityEngine.Object);
+		}
+
+		Type GetExplicitValueType()
+		{
+			var typePort = GetInputPortByName(k_BindTypePortName);
 			var typeNode = typePort?.FirstConnectedPort?.GetNode() as IInjekkoTypeAuthoringNode;
 			if (typeNode != null)
 				return typeNode.GetValueType();
@@ -408,17 +452,21 @@ namespace Injekko.Editor.GraphToolkit
 			return null;
 		}
 
-		public UnityEngine.Object GetDefaultReference(Type expectedType)
+		Type GetInferableReferenceType()
 		{
-			if (InjekkoNodeOptionUtility.TryGetOptionValue(this, k_ReferenceOptionName, out UnityEngine.Object configuredReference))
-				return InjekkoNodeOptionUtility.NormalizeReferenceForType(configuredReference, expectedType);
+			if (!InjekkoNodeOptionUtility.TryGetOptionObjectValue(this, k_ReferenceOptionName, out UnityEngine.Object configuredReference))
+				configuredReference = defaultReference;
 
-			return InjekkoNodeOptionUtility.NormalizeReferenceForType(defaultReference, expectedType);
+			return InjekkoNodeOptionUtility.GetInferableReferenceType(configuredReference);
 		}
 	}
 
 	internal static class InjekkoNodeOptionUtility
 	{
+		static readonly System.Reflection.MethodInfo TryGetOptionValueMethod = typeof(INodeOption)
+			.GetMethods()
+			.First(static method => method.Name == nameof(INodeOption.TryGetValue) && method.IsGenericMethodDefinition);
+
 		internal static bool TryGetOptionValue<T>(Node node, string optionName, out T value)
 		{
 			var option = node.GetNodeOptionByName(optionName);
@@ -427,6 +475,36 @@ namespace Injekko.Editor.GraphToolkit
 
 			value = default;
 			return false;
+		}
+
+		internal static bool TryGetOptionObjectValue(Node node, string optionName, out UnityEngine.Object value)
+		{
+			value = null;
+			if (node == null || string.IsNullOrWhiteSpace(optionName))
+				return false;
+
+			var option = node.GetNodeOptionByName(optionName);
+			if (option == null)
+				return false;
+
+			Type dataType = option.DataType;
+			if (dataType == null || !typeof(UnityEngine.Object).IsAssignableFrom(dataType))
+				dataType = typeof(UnityEngine.Object);
+
+			object[] arguments = { null };
+			try
+			{
+				bool success = (bool)TryGetOptionValueMethod.MakeGenericMethod(dataType).Invoke(option, arguments);
+				if (!success)
+					return false;
+
+				value = arguments[0] as UnityEngine.Object;
+				return true;
+			}
+			catch
+			{
+				return false;
+			}
 		}
 
 		internal static UnityEngine.Object NormalizeReferenceForType(UnityEngine.Object candidate, Type serviceType)
@@ -445,7 +523,21 @@ namespace Injekko.Editor.GraphToolkit
 					return component;
 			}
 
+			if (serviceType.IsInterface)
+			{
+				var component = ResolveInterfaceComponentCandidate(candidate, serviceType);
+				if (component != null)
+					return component;
+			}
+
 			return candidate;
+		}
+
+		internal static Type GetInferableReferenceType(UnityEngine.Object candidate)
+		{
+			return candidate is ScriptableObject scriptableObject
+				? scriptableObject.GetType()
+				: null;
 		}
 
 		static Component ResolveComponentCandidate(UnityEngine.Object candidate, Type componentType)
@@ -460,6 +552,24 @@ namespace Injekko.Editor.GraphToolkit
 
 				return component.gameObject != null
 					? component.gameObject.GetComponent(componentType)
+					: null;
+			}
+
+			return null;
+		}
+
+		static Component ResolveInterfaceComponentCandidate(UnityEngine.Object candidate, Type interfaceType)
+		{
+			if (candidate is GameObject gameObject)
+				return gameObject.GetComponents<Component>().FirstOrDefault(interfaceType.IsInstanceOfType);
+
+			if (candidate is Component component)
+			{
+				if (interfaceType.IsInstanceOfType(component))
+					return component;
+
+				return component.gameObject != null
+					? component.gameObject.GetComponents<Component>().FirstOrDefault(interfaceType.IsInstanceOfType)
 					: null;
 			}
 
