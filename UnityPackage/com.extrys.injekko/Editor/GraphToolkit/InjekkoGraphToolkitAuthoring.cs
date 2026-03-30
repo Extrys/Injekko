@@ -176,9 +176,17 @@ namespace Injekko.Editor.GraphToolkit
 	}
 
 	[Serializable]
-	[Node("", "", "Bind Declaration")]
+	[Node("", "Packages/com.extrys.injekko/Editor/Icons/InjekkoBindNodeIcon.png", "Bind Declaration")]
 	internal sealed class BindDeclarationContextNode : ContextNode, IInjekkoBindingAuthoringNode
 	{
+		const string k_MutedSubtitleColor = "#88888855";
+		const string k_InferredTypeColor = "#4ec9b055";
+		const string k_SourceTypeColor = "#4ec9b0";
+		const string k_ValueColor = "#c7b3f7";
+		const string k_ServiceTypeColor = "#ccd9a2";
+		const string k_StalePreviewWarningColor = "#e8c547";
+		static readonly Color k_DefaultDeclarationColor = Color.deepSkyBlue * 0.9f;
+
 		public InjekGraphNodeKind Kind
 		{
 			get
@@ -257,8 +265,90 @@ namespace Injekko.Editor.GraphToolkit
 		public override void OnEnable()
 		{
 			//TODO: Thia is a temporary example, but in future iterations, this text should be constructed automatically based on the contained blocks to give a more accurate preview of the declaration
-			Subtitle = "<color=#88888855>Inferred bind type (</color><color=#4ec9b055>TypeA</color><color=#88888855>)</color>\nBind<<color=#4ec9b0>TypeA</color>>(<color=#c7b3f7>instanceOfTypeA</color>).To<<color=#ccd9a2>ITypeCustom</color>>().FromNew()";
-			DefaultColor = Color.deepSkyBlue * 0.9f;
+			//Subtitle = "<color=#88888855>Inferred bind type (</color><color=#4ec9b055>TypeA</color><color=#88888855>)</color>\nBind<<color=#4ec9b0>TypeA</color>>(<color=#c7b3f7>instanceOfTypeA</color>).To<<color=#ccd9a2>ITypeCustom</color>>().FromNew()";
+			DefaultColor = k_DefaultDeclarationColor;
+			ApplyPresentation(BlockNodes.OfType<BindDeclarationBlockNode>().OrderBy(static block => block.Index).ToArray());
+		}
+
+		void ApplyPresentation(BindDeclarationBlockNode[] blocks)
+		{
+			Subtitle = BuildSubtitle(blocks);
+			DefaultColor = k_DefaultDeclarationColor;
+		}
+
+		string BuildSubtitle(BindDeclarationBlockNode[] blocks)
+		{
+			var lines = new List<string>(2);
+
+			if (blocks == null || blocks.Length == 0)
+			{
+				lines.Add("<color=#88888855>Add an Instance or Type block to begin.</color>");
+				return string.Join("\n", lines);
+			}
+
+			if (blocks.FirstOrDefault() is InstanceBlock instanceBlock)
+			{
+				Type explicitType = instanceBlock.GetExplicitValueTypeOrNull();
+				Type inferredType = explicitType == null ? instanceBlock.GetInferableValueTypeOrNull() : null;
+				if (inferredType != null)
+				{
+					lines.Add(
+						$"{Colorize("Inferred bind type (", k_MutedSubtitleColor)}" +
+						$"{Colorize(BuildPreviewTypeName(inferredType), k_InferredTypeColor)}" +
+						$"{Colorize(")", k_MutedSubtitleColor)}");
+				}
+			}
+
+			lines.Add($"{BuildDeclarationPreview(blocks)} {Colorize("<size=4>(Preview text is work in progress)</size>", k_StalePreviewWarningColor)}");
+			return string.Join("\n", lines.Where(static line => !string.IsNullOrWhiteSpace(line)));
+		} 
+
+		string BuildDeclarationPreview(BindDeclarationBlockNode[] blocks)
+		{
+			Type sourceType = GetSourceOrImplementationType(blocks);
+			string preview = blocks.FirstOrDefault() switch
+			{
+				InstanceBlock instanceBlock => BuildInstancePreview(instanceBlock, sourceType),
+				TypeBlock => $"Bind<{Colorize(BuildPreviewTypeName(sourceType), k_SourceTypeColor)}>()",
+				_ => "Bind<?>()",
+			};
+
+			if (blocks.Length < 2 || blocks[1] is not IInjekkoDestinationBlock destinationBlock)
+				return preview;
+
+			return preview + BuildDestinationPreview(blocks[1], destinationBlock.GetServiceType(sourceType));
+		}
+
+		string BuildInstancePreview(InstanceBlock instanceBlock, Type sourceType)
+		{
+			string typeName = BuildPreviewTypeName(sourceType);
+			string fieldName = string.IsNullOrWhiteSpace(instanceBlock.FieldName) ? "instance" : EscapeRichText(instanceBlock.FieldName);
+			return $"Bind<{Colorize(typeName, k_SourceTypeColor)}>({Colorize(fieldName, k_ValueColor)})";
+		}
+
+		string BuildDestinationPreview(BindDeclarationBlockNode destinationBlock, Type serviceType)
+		{
+			if (destinationBlock is ToTypeInferredBlock)
+				return ".ToInferredType()";
+
+			return $".To<{Colorize(BuildPreviewTypeName(serviceType), k_ServiceTypeColor)}>()";
+		}
+
+		static string BuildPreviewTypeName(Type type)
+			=> EscapeRichText(type == null ? "?" : (type.Name?.Replace("+", ".") ?? "?"));
+
+		static string Colorize(string value, string colorHex)
+			=> $"<color={colorHex}>{value}</color>";
+
+		static string EscapeRichText(string value)
+		{
+			if (string.IsNullOrEmpty(value))
+				return string.Empty;
+
+			return value
+				.Replace("&", "&amp;")
+				.Replace("<", "&lt;")
+				.Replace(">", "&gt;");
 		}
 	}
 
@@ -385,8 +475,7 @@ namespace Injekko.Editor.GraphToolkit
 		{
 			context.AddOption<string>(k_FieldNameOptionName)
 				.WithDisplayName("Field Name")
-				.WithDefaultValue(fieldName)
-				.Delayed();
+				.WithDefaultValue(fieldName);
 
 			Type referenceOptionType = GetReferenceFieldType();
 			context.AddOption(k_ReferenceOptionName, referenceOptionType)
@@ -401,19 +490,19 @@ namespace Injekko.Editor.GraphToolkit
 
 		public Type GetValueType()
 		{
-			Type explicitType = GetExplicitValueType();
+			Type explicitType = GetExplicitValueTypeOrNull();
 			if (explicitType != null)
 				return explicitType;
 
-			return GetInferableReferenceType();
+			return GetInferableValueTypeOrNull();
 		}
 
 		public UnityEngine.Object GetDefaultReference(Type expectedType)
 		{
 			if (InjekkoNodeOptionUtility.TryGetOptionObjectValue(this, k_ReferenceOptionName, out UnityEngine.Object configuredReference))
-				return InjekkoNodeOptionUtility.NormalizeReferenceForType(configuredReference, expectedType ?? GetInferableReferenceType());
+				return InjekkoNodeOptionUtility.NormalizeReferenceForType(configuredReference, expectedType ?? GetInferableValueTypeOrNull());
 
-			return InjekkoNodeOptionUtility.NormalizeReferenceForType(defaultReference, expectedType ?? GetInferableReferenceType());
+			return InjekkoNodeOptionUtility.NormalizeReferenceForType(defaultReference, expectedType ?? GetInferableValueTypeOrNull());
 		}
 
 		internal void RefreshDynamicReferenceOptionType()
@@ -429,7 +518,7 @@ namespace Injekko.Editor.GraphToolkit
 
 		Type GetReferenceFieldType()
 		{
-			Type bindType = GetExplicitValueType();
+			Type bindType = GetExplicitValueTypeOrNull();
 			if (bindType == null)
 				return typeof(UnityEngine.Object);
 
@@ -439,7 +528,7 @@ namespace Injekko.Editor.GraphToolkit
 			return typeof(UnityEngine.Object);
 		}
 
-		Type GetExplicitValueType()
+		internal Type GetExplicitValueTypeOrNull()
 		{
 			var typePort = GetInputPortByName(k_BindTypePortName);
 			var typeNode = typePort?.FirstConnectedPort?.GetNode() as IInjekkoTypeAuthoringNode;
@@ -452,7 +541,7 @@ namespace Injekko.Editor.GraphToolkit
 			return null;
 		}
 
-		Type GetInferableReferenceType()
+		internal Type GetInferableValueTypeOrNull()
 		{
 			if (!InjekkoNodeOptionUtility.TryGetOptionObjectValue(this, k_ReferenceOptionName, out UnityEngine.Object configuredReference))
 				configuredReference = defaultReference;
@@ -576,4 +665,5 @@ namespace Injekko.Editor.GraphToolkit
 			return null;
 		}
 	}
+
 }

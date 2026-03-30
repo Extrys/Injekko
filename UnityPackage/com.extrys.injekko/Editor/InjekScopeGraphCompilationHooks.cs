@@ -91,4 +91,5 @@ namespace Injekko.Editor
 				|| assetPath.EndsWith(".asset", StringComparison.OrdinalIgnoreCase);
 		}
 	}
+
 }
