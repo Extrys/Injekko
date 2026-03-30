@@ -27,7 +27,7 @@ This is the shortest useful reading order for the current graph-first, instance-
   - `Runtime/Unity/InjekGeneratedRuntimeRegistry.cs`
   - `Runtime/Unity/InjekkoRuntimeBootstrap.cs`
 - What it does: registers generated graph-plan delegates and initializes the project root.
-- Project rule: `Resources/InjekkoProjectAsset.injekgraph` is loaded directly as `InjekCompiledScopePlan`.
+- Project rule: `Resources/ProjectPlan.injekgraph` is loaded directly as `InjekCompiledScopePlan`.
 
 ## 5. `SceneScope` and `GameObjectScope`
 - Files:

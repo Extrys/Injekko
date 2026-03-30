@@ -11,7 +11,6 @@ namespace Injekko.Editor
 	{
 		const string AnalyzerAssetPath = "Packages/com.extrys.injekko/Analyzers/InjekkoGen.dll";
 		const string AnalyzerLabel = "RoslynAnalyzer";
-		const string ProjectResourceName = "InjekkoProjectAsset";
 
 		[MenuItem("Tools/Injekko/Validate Setup")]
 		public static void ValidateSetup()
@@ -64,21 +63,21 @@ namespace Injekko.Editor
 		{
 			var directProjectGraph = FindDirectProjectGraph();
 			if (directProjectGraph == null)
-				return "No project bootstrap graph found. Create Resources/InjekkoProjectAsset.injekgraph.";
+				return $"No project bootstrap graph found. Create Resources/{InjekkoProjectConventions.ProjectPlanResourceName}.injekgraph.";
 
 			return ValidateLoadedScenesHaveSceneScope();
 		}
 
 		static InjekCompiledScopePlan FindDirectProjectGraph()
 		{
-			foreach (string guid in AssetDatabase.FindAssets($"t:{nameof(InjekCompiledScopePlan)} {ProjectResourceName}"))
+			foreach (string guid in AssetDatabase.FindAssets($"t:{nameof(InjekCompiledScopePlan)} {InjekkoProjectConventions.ProjectPlanResourceName}"))
 			{
 				string path = AssetDatabase.GUIDToAssetPath(guid);
 				if (string.IsNullOrWhiteSpace(path))
 					continue;
 				if (!path.Contains("/Resources/", StringComparison.OrdinalIgnoreCase) && !path.Contains("\\Resources\\", StringComparison.OrdinalIgnoreCase))
 					continue;
-				if (!string.Equals(Path.GetFileNameWithoutExtension(path), ProjectResourceName, StringComparison.Ordinal))
+				if (!string.Equals(Path.GetFileNameWithoutExtension(path), InjekkoProjectConventions.ProjectPlanResourceName, StringComparison.Ordinal))
 					continue;
 
 				var graph = AssetDatabase.LoadAssetAtPath<InjekCompiledScopePlan>(path);

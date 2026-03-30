@@ -35,7 +35,7 @@ You can then run `Tools/Injekko/Validate Setup` inside Unity to verify the packa
 
 Create your project graph directly at:
 
-- `Assets/Resources/InjekkoProjectAsset.injekgraph`
+- `Assets/Resources/ProjectPlan.injekgraph`
 
 That graph is loaded automatically before scene load and becomes the project root for scope setup. Because project graphs never need scene references, their asset references live directly on the graph itself.
 
@@ -43,7 +43,7 @@ Each gameplay scene should also contain one `SceneScope` component with its own 
 
 ## First Runtime Model
 
-- Project scope is created automatically from `Resources/InjekkoProjectAsset.injekgraph`.
+- Project scope is created automatically from `Resources/ProjectPlan.injekgraph`.
 - Each gameplay scene is expected to declare one explicit `SceneScope` component.
 - `ProjectScope` and `SceneScope` bindings are now driven by graph assets that compile to generated binding plans.
 - `GameObjectScope` creates explicit subscopes on `GameObject`s when you need them.

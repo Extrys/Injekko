@@ -5,8 +5,6 @@ namespace Injekko.Unity
 {
 	public static class InjekkoRuntimeBootstrap
 	{
-		const string ProjectResourceName = "InjekkoProjectAsset";
-
 		static bool isInitialized;
 		static InjekCompiledScopePlan configuredProjectGraph;
 
@@ -38,7 +36,7 @@ namespace Injekko.Unity
 				return;
 
 			// Project graphs are loaded directly as compiled plans; there is no wrapper asset in the main path anymore.
-			configuredProjectGraph ??= Resources.Load<InjekCompiledScopePlan>(ProjectResourceName);
+			configuredProjectGraph ??= Resources.Load<InjekCompiledScopePlan>(InjekkoProjectConventions.ProjectPlanResourceName);
 			InjekScopeRegistry.Configure(configuredProjectGraph);
 			SceneManager.sceneUnloaded -= OnSceneUnloaded;
 			SceneManager.sceneUnloaded += OnSceneUnloaded;
