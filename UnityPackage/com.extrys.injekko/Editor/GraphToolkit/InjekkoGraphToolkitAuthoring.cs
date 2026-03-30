@@ -38,20 +38,10 @@ namespace Injekko.Editor.GraphToolkit
 			}
 
 			BindDeclarationBlockNode firstBlock = blocks[0];
-			switch (firstBlock)
-			{
-				case InstanceBlock instanceBlock:
-					ValidateInstanceDeclaration(infos, blocks, instanceBlock);
-					break;
-
-				case TypeBlock typeBlock:
-					ValidateTypeDeclaration(infos, typeBlock);
-					break;
-
-				default:
-					infos.LogError("The first block in a BindDeclaration must be Instance or Type.", declaration);
-					break;
-			}
+			if (firstBlock is InstanceBlock instanceBlock)
+				ValidateInstanceDeclaration(infos, blocks, instanceBlock);
+			else
+				infos.LogError("The first block in a BindDeclaration must be Instance.", declaration);
 		}
 
 		static void ValidateInstanceDeclaration(GraphLogger infos, BindDeclarationBlockNode[] blocks, InstanceBlock instanceBlock)
@@ -87,12 +77,6 @@ namespace Injekko.Editor.GraphToolkit
 			else if (sourceType != null && !serviceType.IsAssignableFrom(sourceType))
 				infos.LogError($"Instance source type '{sourceType.FullName}' is not assignable to service type '{serviceType.FullName}'.", blocks[1]);
 		}
-
-		static void ValidateTypeDeclaration(GraphLogger infos, TypeBlock typeBlock)
-		{
-			infos.LogError("Type declarations are currently parked. Use Instance declarations in the main path.", typeBlock);
-		}
-
 		static void ValidateReferenceCompatibility(GraphLogger infos, BindDeclarationBlockNode block, Type serviceType, UnityEngine.Object reference, string blockName)
 		{
 			Type referenceType = reference.GetType();
@@ -163,21 +147,8 @@ namespace Injekko.Editor.GraphToolkit
 				.ToArray();
 		}
 
-		IInjekkoReferenceSourceBlock GetSourceBlock()
-		{
-			return GetOrderedBlocks().FirstOrDefault(static block => block is IInjekkoReferenceSourceBlock) as IInjekkoReferenceSourceBlock;
-		}
-
 		static Type GetSourceOrImplementationType(BindDeclarationBlockNode[] blocks)
-		{
-			if (blocks.FirstOrDefault() is InstanceBlock instanceBlock)
-				return instanceBlock.GetValueType();
-
-			if (blocks.FirstOrDefault() is TypeBlock typeBlock)
-				return typeBlock.GetValueType();
-
-			return null;
-		}
+			=> blocks.FirstOrDefault() is InstanceBlock instanceBlock ? instanceBlock.GetValueType() : null;
 
 		public override void OnEnable()
 		{
@@ -199,7 +170,7 @@ namespace Injekko.Editor.GraphToolkit
 
 			if (blocks == null || blocks.Length == 0)
 			{
-				lines.Add("<color=#88888855>Add an Instance or Type block to begin.</color>");
+				lines.Add("<color=#88888855>Add an Instance block to begin.</color>");
 				return string.Join("\n", lines);
 			}
 
@@ -226,7 +197,6 @@ namespace Injekko.Editor.GraphToolkit
 			string preview = blocks.FirstOrDefault() switch
 			{
 				InstanceBlock instanceBlock => BuildInstancePreview(instanceBlock, sourceType),
-				TypeBlock => $"Bind<{Colorize(BuildPreviewTypeName(sourceType), k_SourceTypeColor)}>()",
 				_ => "Bind<?>()",
 			};
 
@@ -274,36 +244,6 @@ namespace Injekko.Editor.GraphToolkit
 	{
 	}
 
-	internal interface IInjekkoReferenceSourceBlock
-	{
-		string FieldName { get; }
-		string ReferenceSlotId { get; }
-		UnityEngine.Object GetDefaultReference(Type expectedType);
-	}
-
-	[Serializable]
-	[Node("", "", "Type")]
-	internal sealed class TypeBlock : BindDeclarationBlockNode, IInjekkoTypeAuthoringNode
-	{
-		protected override void OnDefinePorts(IPortDefinitionContext context)
-		{
-			context.AddInputPort<MonoScript>("Bind Type").Build();
-		}
-
-		public Type GetValueType()
-		{
-			var typePort = GetInputPortByName("Bind Type");
-			var typeNode = typePort?.FirstConnectedPort?.GetNode() as IInjekkoTypeAuthoringNode;
-			if (typeNode != null)
-				return typeNode.GetValueType();
-
-			if (typePort != null && typePort.TryGetValue(out MonoScript portScript))
-				return portScript != null ? portScript.GetClass() : null;
-
-			return null;
-		}
-	}
-
 	[Serializable]
 	[UseWithContext(typeof(BindDeclarationContextNode))]
 	[Node("", "", "To Injectable Type")]
@@ -339,7 +279,7 @@ namespace Injekko.Editor.GraphToolkit
 	[Serializable]
 	[UseWithContext(typeof(BindDeclarationContextNode))]
 	[Node("", "", "Instance")]
-	internal sealed class InstanceBlock : BindDeclarationBlockNode, IInjekkoReferenceSourceBlock, IInjekkoTypeAuthoringNode
+	internal sealed class InstanceBlock : BindDeclarationBlockNode, IInjekkoTypeAuthoringNode
 	{
 		const string k_FieldNameOptionName = "FieldName";
 		const string k_BindTypePortName = "Bind Type";

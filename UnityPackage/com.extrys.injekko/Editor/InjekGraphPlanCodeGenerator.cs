@@ -92,16 +92,15 @@ namespace Injekko.Editor
 			string serviceTypeName = BuildTypeName(node.ServiceType);
 			string referenceAccess = $"host.GetGraphReferenceOrThrow(\"{Escape(node.ReferenceSlotId)}\")";
 
-			switch (node.Kind)
+			// Graph plans stay intentionally direct here: resolve the serialized slot and bind the exact service type.
+			if (node.Kind != InjekGraphNodeKind.BindInstance)
 			{
-				case InjekGraphNodeKind.BindInstance:
-					if (!string.IsNullOrWhiteSpace(serviceTypeName) && !string.IsNullOrWhiteSpace(node.ReferenceSlotId))
-						yield return $"scope.BindInstance(({serviceTypeName}){referenceAccess});";
-					yield break;
-				default:
-					yield return $"throw new global::Injekko.InjekException(\"Graph plan '{Escape(node.DisplayName)}' contains unsupported binding kind '{node.Kind}' in the instance-first runtime path.\");";
-					yield break;
+				yield return $"throw new global::Injekko.InjekException(\"Graph plan '{Escape(node.DisplayName)}' contains unsupported binding kind '{node.Kind}' in the instance-first runtime path.\");";
+				yield break;
 			}
+
+			if (!string.IsNullOrWhiteSpace(serviceTypeName) && !string.IsNullOrWhiteSpace(node.ReferenceSlotId))
+				yield return $"scope.BindInstance(({serviceTypeName}){referenceAccess});";
 		}
 
 		static string BuildTypeName(Type type)

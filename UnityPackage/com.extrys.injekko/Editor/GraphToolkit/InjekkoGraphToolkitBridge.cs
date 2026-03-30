@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
-using Unity.GraphToolkit.Editor;
-using UnityEngine;
 using Injekko.Unity;
 
 namespace Injekko.Editor.GraphToolkit
@@ -132,115 +130,16 @@ namespace Injekko.Editor.GraphToolkit
 			return Array.Empty<InjekkoBindingAuthoringDefinition>();
 		}
 
-		public static IReadOnlyList<InjekkoBindingAuthoringDefinition> LowerBindingDefinitionsForImport(string assetPath)
-		{
-			if (string.IsNullOrWhiteSpace(assetPath))
-				return Array.Empty<InjekkoBindingAuthoringDefinition>();
-
-			var graph = GraphDatabase.LoadGraphForImporter<InjekkoAuthoringGraph>(assetPath);
-			if (graph == null)
-				return Array.Empty<InjekkoBindingAuthoringDefinition>();
-
-			return InjekkoGraphReflectionUtility.GetBindingDefinitions(graph);
-		}
-
 		internal static string BuildDisplayName(string explicitDisplayName, InjekGraphNodeKind kind, Type serviceType, bool requiresReferenceSlot)
 		{
 			if (!string.IsNullOrWhiteSpace(explicitDisplayName))
 				return explicitDisplayName;
-
-			if (requiresReferenceSlot)
+			if (kind == InjekGraphNodeKind.BindInstance && requiresReferenceSlot)
 				return "Unnamed Reference";
-
-			string serviceName = GetFriendlyTypeName(serviceType);
-			return kind switch
-			{
-				InjekGraphNodeKind.BindInstance => $"Bind Instance<{serviceName}>",
-				_ => kind.ToString(),
-			};
+			return $"Bind Instance<{GetFriendlyTypeName(serviceType)}>";
 		}
 
 		static string GetFriendlyTypeName(Type type)
 			=> type == null ? "Unassigned" : type.FullName?.Replace("+", ".") ?? type.Name;
-	}
-
-	internal static class InjekkoGraphReflectionUtility
-	{
-		internal static IReadOnlyList<InjekkoBindingAuthoringDefinition> GetBindingDefinitions(Graph graph)
-		{
-			if (graph == null)
-				return Array.Empty<InjekkoBindingAuthoringDefinition>();
-
-			var contexts = graph.GetNodes()
-				.OfType<BindDeclarationContextNode>()
-				.ToArray();
-			if (contexts.Length == 0)
-				return Array.Empty<InjekkoBindingAuthoringDefinition>();
-
-			var definitions = new List<InjekkoBindingAuthoringDefinition>();
-			foreach (var context in contexts)
-			{
-				var orderedBlocks = context.BlockNodes
-					.OfType<BindDeclarationBlockNode>()
-					.OrderBy(static block => block.Index)
-					.ToArray();
-				if (orderedBlocks.Length == 0)
-					continue;
-
-				var definition = TryCreateDefinitionFromBlocks(orderedBlocks);
-				if (definition.HasValue)
-					definitions.Add(definition.Value);
-			}
-
-			return definitions;
-		}
-
-		static InjekkoBindingAuthoringDefinition? TryCreateDefinitionFromBlocks(BindDeclarationBlockNode[] blocks)
-		{
-			if (blocks == null || blocks.Length == 0)
-				return null;
-
-			var first = blocks[0];
-			Type implementationType = null;
-			Type serviceType = null;
-			InjekGraphNodeKind kind;
-			bool requiresReferenceSlot = false;
-			string referenceSlotId = string.Empty;
-			string displayName = string.Empty;
-			UnityEngine.Object defaultReference = null;
-
-			switch (first)
-			{
-				case InstanceBlock instanceBlock:
-				{
-					implementationType = null;
-					serviceType = blocks.Length > 1 && blocks[1] is IInjekkoDestinationBlock destinationBlock
-						? destinationBlock.GetServiceType(instanceBlock.GetValueType())
-						: instanceBlock.GetValueType();
-					kind = InjekGraphNodeKind.BindInstance;
-					requiresReferenceSlot = true;
-					referenceSlotId = instanceBlock.ReferenceSlotId ?? string.Empty;
-					displayName = instanceBlock.FieldName ?? string.Empty;
-					defaultReference = instanceBlock.GetDefaultReference(instanceBlock.GetValueType());
-					break;
-				}
-
-				case TypeBlock:
-					return null;
-
-				default:
-					return null;
-			}
-
-			displayName = InjekkoGraphToolkitBridge.BuildDisplayName(displayName, kind, serviceType, requiresReferenceSlot);
-			return new InjekkoBindingAuthoringDefinition(
-				kind,
-				displayName,
-				referenceSlotId,
-				serviceType,
-				implementationType,
-				requiresReferenceSlot,
-				defaultReference);
-		}
 	}
 }

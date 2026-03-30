@@ -57,41 +57,6 @@ namespace Injekko.Editor
 		}
 	}
 
-	[CustomEditor(typeof(InjekkoProjectAsset))]
-	internal sealed class InjekkoProjectAssetEditor : UnityEditor.Editor
-	{
-		public override void OnInspectorGUI()
-		{
-			var projectAsset = (InjekkoProjectAsset)target;
-			DrawDefaultInspector();
-			InjekScopeGraphEditorLayout.DrawHostGraphControls(
-				projectAsset.GraphPlan,
-				() =>
-				{
-					var createdGraph = InjekScopeGraphEditorUtility.CreateGraphAsset($"{projectAsset.name}_ProjectScopeGraph");
-					if (createdGraph == null)
-						return;
-
-					Undo.RecordObject(projectAsset, "Assign Injek Project Graph");
-					projectAsset.SetEditorGraph(createdGraph);
-					EditorUtility.SetDirty(projectAsset);
-					AssetDatabase.SaveAssets();
-					InjekkoGraphToolkitBridge.OpenAuthoringGraph(createdGraph);
-				});
-			InjekScopeGraphEditorUtility.DrawReferenceBindings(projectAsset, allowSceneObjects: false);
-
-			EditorGUILayout.Space();
-			if (GUILayout.Button("Refresh Project Graph Bindings"))
-			{
-				InjekScopeGraphCompiler.RefreshProjectAssetBindings(projectAsset);
-				AssetDatabase.SaveAssets();
-			}
-
-			if (GUILayout.Button("Compile Graph Plans"))
-				InjekScopeGraphCompiler.CompileAll();
-		}
-	}
-
 	[CustomEditor(typeof(SceneScope))]
 	internal sealed class SceneScopeEditor : UnityEditor.Editor
 	{
@@ -217,13 +182,13 @@ namespace Injekko.Editor
 				return;
 			}
 
-			DrawReferenceBindings(host, allowSceneObjects: true, drawInsideExistingBox: drawInsideExistingBox, wrapInBox: true);
+			DrawReferenceBindings(host, allowSceneObjects: true, drawInsideExistingBox: drawInsideExistingBox);
 		}
 
 		internal static void DrawReferenceBindings(IInjekGraphReferenceHost host, bool allowSceneObjects)
-			=> DrawReferenceBindings(host, allowSceneObjects, drawInsideExistingBox: false, wrapInBox: true);
+			=> DrawReferenceBindings(host, allowSceneObjects, drawInsideExistingBox: false);
 
-		static void DrawReferenceBindings(IInjekGraphReferenceHost host, bool allowSceneObjects, bool drawInsideExistingBox, bool wrapInBox)
+		static void DrawReferenceBindings(IInjekGraphReferenceHost host, bool allowSceneObjects, bool drawInsideExistingBox)
 		{
 			if (host?.GraphPlan == null)
 				return;
@@ -235,12 +200,10 @@ namespace Injekko.Editor
 			if (!drawInsideExistingBox)
 				EditorGUILayout.Space();
 
-			var bindings = host is InjekkoProjectAsset projectAsset
-				? projectAsset.GraphBindings
-				: host is SceneScope sceneScope
-					? sceneScope.GraphBindings
-					: host is GameObjectScope gameObjectScope
-						? gameObjectScope.GraphBindings
+			var bindings = host is SceneScope sceneScope
+				? sceneScope.GraphBindings
+				: host is GameObjectScope gameObjectScope
+					? gameObjectScope.GraphBindings
 					: Array.Empty<InjekGraphReferenceBinding>();
 
 			Action drawContent = () =>
@@ -294,13 +257,7 @@ namespace Injekko.Editor
 					.Where(static binding => binding.Target != null)
 					.ToArray();
 
-				if (host is InjekkoProjectAsset writableProjectAsset)
-				{
-					Undo.RecordObject(writableProjectAsset, "Edit Injek Project Graph Bindings");
-					writableProjectAsset.SetEditorGraphBindings(serializedBindings);
-					EditorUtility.SetDirty(writableProjectAsset);
-				}
-				else if (host is SceneScope writableSceneScope)
+				if (host is SceneScope writableSceneScope)
 				{
 					Undo.RecordObject(writableSceneScope, "Edit Injek Scene Graph Bindings");
 					writableSceneScope.SetEditorGraphBindings(serializedBindings);
@@ -494,23 +451,6 @@ namespace Injekko.Editor
 			return EditorGUIUtility.isProSkin
 				? new Color(0.55f, 0.39f, 0.14f, 1f)
 				: new Color(0.80f, 0.58f, 0.24f, 1f);
-		}
-	}
-
-	static class InjekScopeGraphEditorLayout
-	{
-		internal static void DrawHostGraphControls(InjekCompiledScopePlan graphAsset, Action createAndAssign)
-		{
-			if (graphAsset == null)
-			{
-				EditorGUILayout.Space();
-				using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
-				{
-					EditorGUILayout.HelpBox("Assign or create an Injek scope graph to author bindings visually.", MessageType.Warning);
-					if (GUILayout.Button("Create And Assign Graph"))
-						createAndAssign?.Invoke();
-				}
-			}
 		}
 	}
 }

@@ -6,6 +6,8 @@ This is the first Unity-first package scaffold for Injekko. It already contains:
 - `Editor/`: setup validation, graph-plan compilation and graph authoring hooks.
 - `Analyzers/`: the built `InjekkoGen.dll` source generator.
 
+If you want the fastest code-reading map through the current graph-first runtime, start with `ARCHITECTURE.md`.
+
 ## Add It To A Unity Project
 
 1. Open Package Manager.
@@ -37,17 +39,11 @@ Create your project graph directly at:
 
 That graph is loaded automatically before scene load and becomes the project root for scope setup. Because project graphs never need scene references, their asset references live directly on the graph itself.
 
-Legacy fallback:
-
-- `Assets/Resources/InjekkoProjectAsset.asset`
-
-The wrapper asset still works, but the direct `.injekgraph` path is now the seamless preferred workflow for project scope.
-
 Each gameplay scene should also contain one `SceneScope` component with its own `.injekgraph` asset.
 
 ## First Runtime Model
 
-- Project scope is created automatically from `Resources/InjekkoProjectAsset`, preferring the direct `.injekgraph` workflow.
+- Project scope is created automatically from `Resources/InjekkoProjectAsset.injekgraph`.
 - Each gameplay scene is expected to declare one explicit `SceneScope` component.
 - `ProjectScope` and `SceneScope` bindings are now driven by graph assets that compile to generated binding plans.
 - `GameObjectScope` creates explicit subscopes on `GameObject`s when you need them.

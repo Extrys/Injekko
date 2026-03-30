@@ -8,14 +8,14 @@ namespace Injekko.Unity
 		const string ProjectResourceName = "InjekkoProjectAsset";
 
 		static bool isInitialized;
-		static InjekkoProjectAsset configuredProjectAsset;
+		static InjekCompiledScopePlan configuredProjectGraph;
 
-		public static InjekkoProjectAsset ProjectAsset
+		public static InjekCompiledScopePlan ProjectGraph
 		{
-			get => configuredProjectAsset;
+			get => configuredProjectGraph;
 			set
 			{
-				configuredProjectAsset = value;
+				configuredProjectGraph = value;
 				isInitialized = false;
 			}
 		}
@@ -26,9 +26,9 @@ namespace Injekko.Unity
 			EnsureInitialized();
 		}
 
-		public static void Configure(InjekkoProjectAsset projectAsset)
+		public static void Configure(InjekCompiledScopePlan projectGraph)
 		{
-			ProjectAsset = projectAsset;
+			ProjectGraph = projectGraph;
 			EnsureInitialized();
 		}
 
@@ -37,20 +37,9 @@ namespace Injekko.Unity
 			if (isInitialized)
 				return;
 
-			if (configuredProjectAsset == null)
-			{
-				var directProjectGraph = Resources.Load<InjekCompiledScopePlan>(ProjectResourceName);
-				if (directProjectGraph != null)
-					configuredProjectAsset = InjekkoProjectAsset.CreateRuntimeProjectAsset(directProjectGraph, directProjectGraph.name);
-			}
-
-			if (configuredProjectAsset == null)
-				configuredProjectAsset = Resources.Load<InjekkoProjectAsset>(ProjectResourceName);
-
-			if (configuredProjectAsset == null)
-				configuredProjectAsset = ScriptableObject.CreateInstance<InjekkoProjectAsset>();
-
-			InjekScopeRegistry.Configure(configuredProjectAsset);
+			// Project graphs are loaded directly as compiled plans; there is no wrapper asset in the main path anymore.
+			configuredProjectGraph ??= Resources.Load<InjekCompiledScopePlan>(ProjectResourceName);
+			InjekScopeRegistry.Configure(configuredProjectGraph);
 			SceneManager.sceneUnloaded -= OnSceneUnloaded;
 			SceneManager.sceneUnloaded += OnSceneUnloaded;
 			isInitialized = true;

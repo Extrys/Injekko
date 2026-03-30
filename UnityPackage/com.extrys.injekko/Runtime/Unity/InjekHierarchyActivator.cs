@@ -51,7 +51,7 @@ namespace Injekko.Unity
 			GameObjectScope gameObjectScope = current.GetComponent<GameObjectScope>();
 			if (gameObjectScope != null)
 			{
-				InjekScopeNode scopeNode = InjekScopeRegistry.EnsureGameObjectScope(current.gameObject, parentScope, gameObjectScope.LegacyInstallers);
+				InjekScopeNode scopeNode = InjekScopeRegistry.EnsureGameObjectScope(current.gameObject, parentScope);
 				gameObjectScope.AssignScope(scopeNode);
 				InjekGeneratedRuntimeRegistry.TryApplyGraphPlan(gameObjectScope, scopeNode);
 				currentScope = scopeNode;

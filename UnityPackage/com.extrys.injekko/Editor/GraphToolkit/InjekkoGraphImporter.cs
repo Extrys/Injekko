@@ -21,10 +21,11 @@ namespace Injekko.Editor.GraphToolkit
 				return;
 			}
 
+			// Import-time lowering is the only graph -> plan translation path in the runtime workflow.
 			var compiledPlan = ScriptableObject.CreateInstance<InjekCompiledScopePlan>();
 			string graphId = AssetDatabase.AssetPathToGUID(ctx.assetPath);
 			string graphName = Path.GetFileNameWithoutExtension(ctx.assetPath);
-			var compiledDefinitions = InjekkoGraphToolkitBridge.LowerBindingDefinitionsForImport(ctx.assetPath)
+			var compiledDefinitions = InjekkoGraphImportLowering.LowerBindingDefinitions(ctx.assetPath)
 				.Select(static definition => definition.ToCompiledDefinition())
 				.ToArray();
 			compiledPlan.SetImportedData(graphId, graphName, compiledDefinitions);

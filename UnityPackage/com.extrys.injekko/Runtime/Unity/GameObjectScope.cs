@@ -7,17 +7,15 @@ namespace Injekko.Unity
 	{
 		[SerializeField] InjekCompiledScopePlan graph = null;
 		[SerializeField, HideInInspector] InjekGraphReferenceBinding[] graphBindings = null;
-		[SerializeField] InjekInstallerAsset[] installers = null;
 
 		public InjekScopeNode ScopeNode { get; private set; }
 		public InjekCompiledScopePlan GraphPlan => graph;
 		public string GraphId => graph != null ? graph.GraphId : string.Empty;
 		internal InjekGraphReferenceBinding[] GraphBindings => graphBindings ?? System.Array.Empty<InjekGraphReferenceBinding>();
-		internal InjekInstallerAsset[] LegacyInstallers => graph == null ? installers ?? System.Array.Empty<InjekInstallerAsset>() : System.Array.Empty<InjekInstallerAsset>();
 
 		void Awake()
 		{
-			ScopeNode = InjekScopeRegistry.EnsureGameObjectScope(gameObject, LegacyInstallers);
+			ScopeNode = InjekScopeRegistry.EnsureGameObjectScope(gameObject);
 			InjekGeneratedRuntimeRegistry.TryApplyGraphPlan(this, ScopeNode);
 		}
 

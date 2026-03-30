@@ -19,7 +19,7 @@ namespace Injekko.Editor
 			string[] messages =
 			{
 				ValidateAnalyzerPresence(),
-				ValidateProjectAsset()
+				ValidateProjectGraph()
 			};
 
 			string report = string.Join(
@@ -60,18 +60,11 @@ namespace Injekko.Editor
 			return null;
 		}
 
-		static string ValidateProjectAsset()
+		static string ValidateProjectGraph()
 		{
-			string[] projectAssets = AssetDatabase.FindAssets("t:InjekkoProjectAsset");
 			var directProjectGraph = FindDirectProjectGraph();
-			if (projectAssets.Length == 0 && directProjectGraph == null)
-				return "No project bootstrap graph found. Create Resources/InjekkoProjectAsset.injekgraph, or use the legacy Resources/InjekkoProjectAsset.asset wrapper.";
-
-			var projectAsset = projectAssets.Length > 0
-				? AssetDatabase.LoadAssetAtPath<InjekkoProjectAsset>(AssetDatabase.GUIDToAssetPath(projectAssets[0]))
-				: null;
-			if (projectAsset != null && projectAsset.GraphPlan == null && directProjectGraph == null)
-				return "InjekkoProjectAsset is missing its ProjectScope graph. Assign a .injekgraph asset to drive project bindings.";
+			if (directProjectGraph == null)
+				return "No project bootstrap graph found. Create Resources/InjekkoProjectAsset.injekgraph.";
 
 			return ValidateLoadedScenesHaveSceneScope();
 		}

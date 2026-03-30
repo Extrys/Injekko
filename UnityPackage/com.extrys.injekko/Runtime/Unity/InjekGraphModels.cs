@@ -6,12 +6,6 @@ namespace Injekko.Unity
 	public enum InjekGraphNodeKind
 	{
 		BindInstance,
-		BindPrefab,
-		BindTransient,
-		BindScoped,
-		BindRedirectTransient,
-		BindRedirectScoped,
-		CustomInstaller,
 	}
 
 	[Serializable]
