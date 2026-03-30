@@ -153,7 +153,6 @@ namespace Injekko.Editor.GraphToolkit
 		const string k_SourceTypeColor = "#4ec9b0";
 		const string k_ValueColor = "#c7b3f7";
 		const string k_ServiceTypeColor = "#ccd9a2";
-		const string k_StalePreviewWarningColor = "#e8c547";
 		static readonly Color k_DefaultDeclarationColor = Color.deepSkyBlue * 0.9f;
 
 		internal BindDeclarationBlockNode[] GetOrderedBlocks()
@@ -217,7 +216,7 @@ namespace Injekko.Editor.GraphToolkit
 				}
 			}
 
-			lines.Add($"{BuildDeclarationPreview(blocks)} {Colorize("<size=4>(Preview text is work in progress)</size>", k_StalePreviewWarningColor)}");
+			lines.Add($"{BuildDeclarationPreview(blocks)}");
 			return string.Join("\n", lines.Where(static line => !string.IsNullOrWhiteSpace(line)));
 		} 
 
