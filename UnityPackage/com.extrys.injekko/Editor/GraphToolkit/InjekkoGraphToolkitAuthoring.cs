@@ -265,7 +265,7 @@ namespace Injekko.Editor.GraphToolkit
 		public override void OnEnable()
 		{
 			//TODO: Thia is a temporary example, but in future iterations, this text should be constructed automatically based on the contained blocks to give a more accurate preview of the declaration
-			Subtitle = "Inferred bind type (TypeA)\nBind<TypeA>(instanceOfTypeA).To<ITypeCustom>().FromNew()";
+			Subtitle = "<color=#88888855>Inferred bind type (</color><color=#4ec9b055>TypeA</color><color=#88888855>)</color>\nBind<<color=#4ec9b0>TypeA</color>>(<color=#c7b3f7>instanceOfTypeA</color>).To<<color=#ccd9a2>ITypeCustom</color>>().FromNew()";
 			DefaultColor = Color.deepSkyBlue * 0.9f;
 		}
 	}
