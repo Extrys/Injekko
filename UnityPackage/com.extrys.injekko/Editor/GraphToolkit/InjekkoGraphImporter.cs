@@ -31,6 +31,8 @@ namespace Injekko.Editor.GraphToolkit
 
 			var icon = AssetDatabase.LoadAssetAtPath<Texture2D>(GraphIconPath);
 			ctx.AddObjectToAsset("CompiledScopePlan", compiledPlan, icon);
+			if (icon != null)
+				EditorGUIUtility.SetIconForObject(compiledPlan, icon);
 			ctx.SetMainObject(compiledPlan);
 		}
 	}

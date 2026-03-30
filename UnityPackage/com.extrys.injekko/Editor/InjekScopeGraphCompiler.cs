@@ -43,13 +43,24 @@ namespace Injekko.Editor
 			if (bindingsChanged)
 				sceneScope.SetEditorGraphBindings(bindings);
 
-			sceneScope.SetEditorCaches(
-				BuildInjectableCache(sceneScope).ToArray(),
-				BuildSceneScopeCache(sceneScope).ToArray());
-			sceneScope.SetEditorGeneratedSceneInjectionGraph(BuildGeneratedSceneInjectionGraph(sceneScope));
+			var injectables = BuildInjectableCache(sceneScope).ToArray();
+			var scopeCaches = BuildSceneScopeCache(sceneScope).ToArray();
+			var generatedGraph = BuildGeneratedSceneInjectionGraph(sceneScope);
+			bool cachesChanged = !AreInjectablesEqual(sceneScope.CachedInjectables, injectables)
+				|| !AreSceneScopeCachesEqual(sceneScope.CachedGameObjectScopes, scopeCaches)
+				|| !AreGeneratedGraphsEqual(sceneScope.GeneratedSceneInjectionGraph, generatedGraph);
+
+			if (cachesChanged)
+			{
+				sceneScope.SetEditorCaches(injectables, scopeCaches);
+				sceneScope.SetEditorGeneratedSceneInjectionGraph(generatedGraph);
+			}
+
+			if (!bindingsChanged && !cachesChanged)
+				return;
 
 			EditorUtility.SetDirty(sceneScope);
-			if (bindingsChanged && sceneScope.gameObject.scene.IsValid())
+			if (sceneScope.gameObject.scene.IsValid())
 				EditorSceneManager.MarkSceneDirty(sceneScope.gameObject.scene);
 		}
 
@@ -145,6 +156,84 @@ namespace Injekko.Editor
 					return false;
 
 				if (!ReferenceEquals(currentBinding?.Target, nextBinding?.Target))
+					return false;
+			}
+
+			return true;
+		}
+
+		static bool AreInjectablesEqual(IReadOnlyList<MonoBehaviour> current, IReadOnlyList<MonoBehaviour> next)
+		{
+			current ??= Array.Empty<MonoBehaviour>();
+			next ??= Array.Empty<MonoBehaviour>();
+
+			if (current.Count != next.Count)
+				return false;
+
+			for (int index = 0; index < current.Count; index++)
+			{
+				if (!ReferenceEquals(current[index], next[index]))
+					return false;
+			}
+
+			return true;
+		}
+
+		static bool AreSceneScopeCachesEqual(IReadOnlyList<InjekSceneScopeCacheEntry> current, IReadOnlyList<InjekSceneScopeCacheEntry> next)
+		{
+			current ??= Array.Empty<InjekSceneScopeCacheEntry>();
+			next ??= Array.Empty<InjekSceneScopeCacheEntry>();
+
+			if (current.Count != next.Count)
+				return false;
+
+			for (int index = 0; index < current.Count; index++)
+			{
+				var currentEntry = current[index];
+				var nextEntry = next[index];
+				if (!ReferenceEquals(currentEntry?.Scope, nextEntry?.Scope)
+					|| !ReferenceEquals(currentEntry?.ParentScope, nextEntry?.ParentScope))
+					return false;
+			}
+
+			return true;
+		}
+
+		static bool AreGeneratedGraphsEqual(InjekSceneInjectionGraph current, InjekSceneInjectionGraph next)
+		{
+			if (ReferenceEquals(current, next))
+				return true;
+
+			if (current == null || next == null)
+				return false;
+
+			if (!string.Equals(current.ScenePath, next.ScenePath, StringComparison.Ordinal))
+				return false;
+
+			var currentNodes = current.Nodes ?? Array.Empty<InjekSceneInjectionNode>();
+			var nextNodes = next.Nodes ?? Array.Empty<InjekSceneInjectionNode>();
+			if (currentNodes.Length != nextNodes.Length)
+				return false;
+
+			for (int index = 0; index < currentNodes.Length; index++)
+			{
+				var currentNode = currentNodes[index];
+				var nextNode = nextNodes[index];
+				if (currentNode == null || nextNode == null)
+				{
+					if (!ReferenceEquals(currentNode, nextNode))
+						return false;
+
+					continue;
+				}
+
+				if (!string.Equals(currentNode.NodeId, nextNode.NodeId, StringComparison.Ordinal)
+					|| !string.Equals(currentNode.ParentNodeId, nextNode.ParentNodeId, StringComparison.Ordinal)
+					|| currentNode.Kind != nextNode.Kind
+					|| !string.Equals(currentNode.DisplayName, nextNode.DisplayName, StringComparison.Ordinal)
+					|| !string.Equals(currentNode.HierarchyPath, nextNode.HierarchyPath, StringComparison.Ordinal)
+					|| !ReferenceEquals(currentNode.TargetGameObject, nextNode.TargetGameObject)
+					|| !ReferenceEquals(currentNode.TargetComponent, nextNode.TargetComponent))
 					return false;
 			}
 

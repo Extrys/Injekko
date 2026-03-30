@@ -98,7 +98,12 @@ namespace Injekko.Editor
 		public override void OnInspectorGUI()
 		{
 			var sceneScope = (SceneScope)target;
-			DrawDefaultInspector();
+			serializedObject.Update();
+			var graphProperty = serializedObject.FindProperty("sceneGraph");
+			if (graphProperty != null)
+				EditorGUILayout.PropertyField(graphProperty, new GUIContent("Scene Graph"));
+			serializedObject.ApplyModifiedProperties();
+
 			InjekScopeGraphEditorLayout.DrawHostGraphControls(
 				sceneScope.GraphPlan,
 				() =>
@@ -119,23 +124,15 @@ namespace Injekko.Editor
 					InjekkoGraphToolkitBridge.OpenAuthoringGraph(createdGraph);
 				});
 			InjekScopeGraphEditorUtility.DrawReferenceBindings(sceneScope, allowSceneObjects: true);
-			InjekScopeGraphEditorUtility.DrawSceneInjectionGraphSection(sceneScope);
-
-			EditorGUILayout.Space();
-			if (GUILayout.Button("Refresh Scene Graph Cache"))
-			{
-				InjekScopeGraphCompiler.RefreshSceneScopeCache(sceneScope);
-				if (sceneScope.gameObject.scene.IsValid())
-					EditorSceneManager.MarkSceneDirty(sceneScope.gameObject.scene);
-			}
-
-			if (GUILayout.Button("Compile Graph Plans"))
-				InjekScopeGraphCompiler.CompileAll();
+			InjekScopeGraphEditorUtility.DrawSceneInjectionGraphSummary(sceneScope);
 		}
 	}
 
 	internal static class InjekScopeGraphEditorUtility
 	{
+		const string SceneToolsFoldoutKey = "Injekko.SceneScopeEditor.SceneToolsFoldout";
+		static GUIStyle sceneToolsFoldoutStyle;
+
 		internal static InjekCompiledScopePlan CreateGraphAsset(string defaultName)
 		{
 			string path = EditorUtility.SaveFilePanelInProject(
@@ -162,13 +159,6 @@ namespace Injekko.Editor
 				.ToArray();
 
 			EditorGUILayout.Space();
-			EditorGUILayout.LabelField("Graph References", EditorStyles.boldLabel);
-
-			if (definitions.Length == 0)
-			{
-				EditorGUILayout.HelpBox("The assigned graph currently has no reference-backed nodes.", MessageType.None);
-				return;
-			}
 
 			var bindings = host is InjekkoProjectAsset projectAsset
 				? projectAsset.GraphBindings
@@ -176,69 +166,71 @@ namespace Injekko.Editor
 					? sceneScope.GraphBindings
 					: Array.Empty<InjekGraphReferenceBinding>();
 
-			var updatedBindings = bindings.ToDictionary(static binding => binding.SlotId, static binding => binding.Target, StringComparer.Ordinal);
-			bool hasChanged = false;
-
-			foreach (var definition in definitions)
+			using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
 			{
-				bool hasLocalOverride = updatedBindings.TryGetValue(definition.ReferenceSlotId, out var localTarget);
-				bool shouldUseGraphDefaultAsFieldValue = !allowSceneObjects;
-				var effectiveTarget = hasLocalOverride
-					? localTarget
-					: shouldUseGraphDefaultAsFieldValue
-						? definition.DefaultReference
-						: null;
-
-				using (new EditorGUILayout.HorizontalScope())
+				if (definitions.Length == 0)
 				{
-					var nextTarget = EditorGUILayout.ObjectField(
-						BuildReferenceLabel(definition, hasLocalOverride, allowSceneObjects),
-						effectiveTarget,
-						definition.GetExpectedReferenceType(),
-						allowSceneObjects);
+					EditorGUILayout.HelpBox("The assigned graph currently has no reference-backed nodes.", MessageType.None);
+					return;
+				}
 
-					using (new EditorGUI.DisabledScope(!hasLocalOverride && definition.DefaultReference == null))
+				var updatedBindings = bindings.ToDictionary(static binding => binding.SlotId, static binding => binding.Target, StringComparer.Ordinal);
+				bool hasChanged = false;
+
+				foreach (var definition in definitions)
+				{
+					bool hasLocalOverride = updatedBindings.TryGetValue(definition.ReferenceSlotId, out var localTarget);
+					var effectiveTarget = hasLocalOverride ? localTarget : definition.DefaultReference;
+
+					using (new EditorGUILayout.HorizontalScope())
 					{
-						if (GUILayout.Button("Use Graph", GUILayout.Width(78f)))
+						var nextTarget = EditorGUILayout.ObjectField(
+							BuildReferenceLabel(definition, hasLocalOverride),
+							effectiveTarget,
+							definition.GetExpectedReferenceType(),
+							allowSceneObjects);
+
+						if (nextTarget == effectiveTarget)
+							continue;
+
+						if (nextTarget == null && definition.DefaultReference == null)
 						{
 							if (updatedBindings.Remove(definition.ReferenceSlotId))
 								hasChanged = true;
+							continue;
 						}
+
+						updatedBindings[definition.ReferenceSlotId] = nextTarget;
+						hasChanged = true;
 					}
-
-					if (nextTarget == effectiveTarget)
-						continue;
-
-					updatedBindings[definition.ReferenceSlotId] = nextTarget;
-					hasChanged = true;
 				}
-			}
 
-			if (!hasChanged)
-				return;
+				if (!hasChanged)
+					return;
 
-			var serializedBindings = definitions
-				.Select(definition =>
+				var serializedBindings = definitions
+					.Select(definition =>
+					{
+						updatedBindings.TryGetValue(definition.ReferenceSlotId, out var target);
+						return new InjekGraphReferenceBinding(definition.ReferenceSlotId, target);
+					})
+					.Where(static binding => binding.Target != null)
+					.ToArray();
+
+				if (host is InjekkoProjectAsset writableProjectAsset)
 				{
-					updatedBindings.TryGetValue(definition.ReferenceSlotId, out var target);
-					return new InjekGraphReferenceBinding(definition.ReferenceSlotId, target);
-				})
-				.Where(static binding => binding.Target != null)
-				.ToArray();
-
-			if (host is InjekkoProjectAsset writableProjectAsset)
-			{
-				Undo.RecordObject(writableProjectAsset, "Edit Injek Project Graph Bindings");
-				writableProjectAsset.SetEditorGraphBindings(serializedBindings);
-				EditorUtility.SetDirty(writableProjectAsset);
-			}
-			else if (host is SceneScope writableSceneScope)
-			{
-				Undo.RecordObject(writableSceneScope, "Edit Injek Scene Graph Bindings");
-				writableSceneScope.SetEditorGraphBindings(serializedBindings);
-				EditorUtility.SetDirty(writableSceneScope);
-				if (writableSceneScope.gameObject.scene.IsValid())
-					EditorSceneManager.MarkSceneDirty(writableSceneScope.gameObject.scene);
+					Undo.RecordObject(writableProjectAsset, "Edit Injek Project Graph Bindings");
+					writableProjectAsset.SetEditorGraphBindings(serializedBindings);
+					EditorUtility.SetDirty(writableProjectAsset);
+				}
+				else if (host is SceneScope writableSceneScope)
+				{
+					Undo.RecordObject(writableSceneScope, "Edit Injek Scene Graph Bindings");
+					writableSceneScope.SetEditorGraphBindings(serializedBindings);
+					EditorUtility.SetDirty(writableSceneScope);
+					if (writableSceneScope.gameObject.scene.IsValid())
+						EditorSceneManager.MarkSceneDirty(writableSceneScope.gameObject.scene);
+				}
 			}
 		}
 
@@ -269,43 +261,49 @@ namespace Injekko.Editor
 			}
 		}
 
-		internal static void DrawSceneInjectionGraphSection(SceneScope sceneScope)
+		internal static void DrawSceneInjectionGraphSummary(SceneScope sceneScope)
 		{
 			EditorGUILayout.Space();
-			EditorGUILayout.LabelField("Generated Scene Injection Graph", EditorStyles.boldLabel);
 
 			var generatedGraph = sceneScope.GeneratedSceneInjectionGraph;
 			int nodeCount = generatedGraph?.Nodes?.Length ?? 0;
-			if (nodeCount == 0)
-			{
-				EditorGUILayout.HelpBox("The scene injection graph has not been generated yet. Refresh the scene graph cache or compile graph plans.", MessageType.None);
+			bool isExpanded = SessionState.GetBool(SceneToolsFoldoutKey, true);
+			isExpanded = EditorGUILayout.Foldout(isExpanded, "Scene Tools", true, GetSceneToolsFoldoutStyle());
+			SessionState.SetBool(SceneToolsFoldoutKey, isExpanded);
+			if (!isExpanded)
 				return;
-			}
 
-			EditorGUILayout.HelpBox("This graph is generated from the current scene structure and is read-only. It represents the cached scope tree and injectable activation plan.", MessageType.Info);
-			EditorGUILayout.LabelField("Node Count", nodeCount.ToString());
-
-			using (new EditorGUILayout.HorizontalScope())
+			using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
 			{
-				if (GUILayout.Button("Open Generated Graph"))
-					InjekSceneInjectionGraphWindow.Open(sceneScope);
+				EditorGUILayout.LabelField("Scene Node Count", nodeCount.ToString());
 
-				if (GUILayout.Button("Ping SceneScope"))
+				using (new EditorGUILayout.HorizontalScope())
 				{
-					EditorGUIUtility.PingObject(sceneScope);
-					Selection.activeObject = sceneScope;
+					using (new EditorGUI.DisabledScope(nodeCount == 0))
+					{
+						if (GUILayout.Button("Open Generated Graph"))
+							InjekSceneInjectionGraphWindow.Open(sceneScope);
+					}
+
+					if (GUILayout.Button("Refresh Scene Graph Cache"))
+					{
+						InjekScopeGraphCompiler.RefreshSceneScopeCache(sceneScope);
+						if (sceneScope.gameObject.scene.IsValid())
+							EditorSceneManager.MarkSceneDirty(sceneScope.gameObject.scene);
+					}
 				}
+
+				if (GUILayout.Button("Recompile Plans"))
+					InjekScopeGraphCompiler.CompileAll();
 			}
 		}
 
-		static string BuildReferenceLabel(InjekkoBindingAuthoringDefinition definition, bool hasLocalOverride, bool allowSceneObjects)
+		static string BuildReferenceLabel(InjekkoBindingAuthoringDefinition definition, bool hasLocalOverride)
 		{
-			string sourceSuffix = hasLocalOverride
-				? string.Empty
-				: allowSceneObjects
-					? string.Empty
-					: " (Graph)";
-			return $"{definition.DisplayName} : {BuildBindingTypeLabel(definition)}{sourceSuffix}";
+			string sourceSuffix = !hasLocalOverride && definition.DefaultReference != null
+				? " [Graph Default]"
+				: string.Empty;
+			return $"{definition.DisplayName}{sourceSuffix}";
 		}
 
 		static string BuildBindingTypeLabel(InjekkoBindingAuthoringDefinition definition)
@@ -329,37 +327,38 @@ namespace Injekko.Editor
 
 		static string BuildTypeLabel(Type type)
 			=> type == null ? "Unassigned" : (type.FullName?.Replace("+", ".") ?? type.Name);
+
+		static GUIStyle GetSceneToolsFoldoutStyle()
+		{
+			if (sceneToolsFoldoutStyle != null)
+				return sceneToolsFoldoutStyle;
+
+			sceneToolsFoldoutStyle = new GUIStyle(EditorStyles.foldout);
+			Color textColor = EditorStyles.label.normal.textColor;
+			textColor.a = EditorGUIUtility.isProSkin ? 0.4f : 0.5f;
+
+			sceneToolsFoldoutStyle.normal.textColor = textColor;
+			sceneToolsFoldoutStyle.onNormal.textColor = textColor;
+			sceneToolsFoldoutStyle.hover.textColor = textColor;
+			sceneToolsFoldoutStyle.onHover.textColor = textColor;
+			sceneToolsFoldoutStyle.focused.textColor = textColor;
+			sceneToolsFoldoutStyle.onFocused.textColor = textColor;
+
+			return sceneToolsFoldoutStyle;
+		}
 	}
 
 	static class InjekScopeGraphEditorLayout
 	{
 		internal static void DrawHostGraphControls(InjekCompiledScopePlan graphAsset, Action createAndAssign)
 		{
-			EditorGUILayout.Space();
-			EditorGUILayout.LabelField("Authoring Graph", EditorStyles.boldLabel);
-
-			using (new EditorGUILayout.HorizontalScope())
-			{
-				if (GUILayout.Button(graphAsset == null ? "Create And Assign Graph" : "Open Graph"))
-				{
-					if (graphAsset == null)
-						createAndAssign?.Invoke();
-					else
-						InjekkoGraphToolkitBridge.OpenAuthoringGraph(graphAsset);
-				}
-
-				using (new EditorGUI.DisabledScope(graphAsset == null))
-				{
-					if (GUILayout.Button("Ping Graph"))
-					{
-						EditorGUIUtility.PingObject(graphAsset);
-						Selection.activeObject = graphAsset;
-					}
-				}
-			}
-
 			if (graphAsset == null)
+			{
+				EditorGUILayout.Space();
 				EditorGUILayout.HelpBox("Assign or create an Injek scope graph to author bindings visually.", MessageType.Warning);
+				if (GUILayout.Button("Create And Assign Graph"))
+					createAndAssign?.Invoke();
+			}
 		}
 	}
 }
