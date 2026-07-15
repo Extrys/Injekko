@@ -4,6 +4,7 @@ Injekko is being developed alongside a game I’m currently working on, both to 
 The project is still in development, and I’ll continue improving it over time as I use it across my own projects.
 
 I still need to add documentation on how to use this new approach. Now it uses graphs for codegen dependency management. It uses Unity Graph Toolkit.
+The fucktories and the rizzolvers are provisional names, sorry for the inconvenience.
 
 
 # Injekko
