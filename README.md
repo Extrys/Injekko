@@ -1,4 +1,8 @@
-# STILL WORK IN PROGRESS!!! I accidentally pushed work :')
+# STILL WORK IN PROGRESS!!!
+
+Injekko is being developed alongside a game I’m currently working on, both to validate it in production and to demonstrate that it can be used in real projects.
+The project is still in development, and I’ll continue improving it over time as I use it across my own projects.
+
 
 # Injekko
 
